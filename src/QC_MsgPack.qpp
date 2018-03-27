@@ -33,6 +33,7 @@
 #include "MsgPack.h"
 #include "QC_MsgPackExtension.h"
 
+using msgpack::MSGPACK_SIMPLE_MODE;
 
 //! MessagePack packing and unpacking class.
 /** MessagePack module packing and unpacking class.
@@ -45,7 +46,7 @@ qclass MsgPack [arg=msgpack::MsgPack* mp; ns=msgpack; flags=final];
 
     @throw INVALID-MODE passed operation mode is invalid
  */
-MsgPack::constructor(int mode) {
+MsgPack::constructor(int mode = MSGPACK_SIMPLE_MODE) {
     if (msgpack::checkOperationMode(xsink, mode))
         return;
     msgpack::OperationMode m = static_cast<msgpack::OperationMode>(mode);
