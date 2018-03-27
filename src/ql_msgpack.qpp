@@ -1,0 +1,136 @@
+/* -*- mode: c++; indent-tabs-mode: nil -*- */
+/*
+  ql_msgpack.qpp
+
+  Qore MessagePack module
+
+  Copyright (C) 2018 Qore Technologies, s.r.o.
+
+  Permission is hereby granted, free of charge, to any person obtaining a
+  copy of this software and associated documentation files (the "Software"),
+  to deal in the Software without restriction, including without limitation
+  the rights to use, copy, modify, merge, publish, distribute, sublicense,
+  and/or sell copies of the Software, and to permit persons to whom the
+  Software is furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in
+  all copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+  FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+  DEALINGS IN THE SOFTWARE.
+*/
+
+// qore
+#include "qore/Qore.h"
+
+// module sources
+#include "msgpack_enums.h"
+#include "msgpack_pack.h"
+#include "msgpack_unpack.h"
+#include "MsgPackException.h"
+
+
+using msgpack::MSGPACK_SIMPLE_MODE;
+using msgpack::MSGPACK_QORE_MODE;
+
+/** @defgroup msgpack_constants MsgPack Constants
+ */
+//@{
+namespace Qore::msgpack;
+
+//! Pack data in simple mode and expect data to be unpacked to be in simple mode.
+const MSGPACK_SIMPLE_MODE = MSGPACK_SIMPLE_MODE;
+
+//! Pack data in Qore mode and expect data to be unpacked to be in Qore mode.
+const MSGPACK_QORE_MODE = MSGPACK_QORE_MODE;
+//@}
+
+/** @defgroup msgpack_functions MessagePack Functions
+ */
+//@{
+namespace Qore::msgpack;
+//! Packs passed Qore value.
+/**
+    @param value the value to pack
+    @param mode operation mode
+
+    @returns value serialized into a binary string
+
+    @throw ENCODING-ERROR encoding error occured during packing
+    @throw INVALID-MODE passed operation mode is invalid
+    @throw PACK-ERROR packing failed
+
+    @par Example:
+    @code
+hash example = {"compact": True, "schema": 0};
+*binary packed = msgpack_pack(example);
+    @endcode
+ */
+*binary msgpack_pack(auto value, int mode = MSGPACK_SIMPLE_MODE) [flags=RET_VALUE_ONLY] {
+    // check operation mode first
+    if (msgpack::checkOperationMode(xsink, mode))
+        return QoreValue();
+
+    try {
+        QoreValue result(msgpack::intern::msgpack_pack(
+            value,
+            static_cast<msgpack::OperationMode>(mode),
+            xsink
+        ));
+        if (xsink && *xsink)
+            return QoreValue();
+        return result;
+    }
+    catch (msgpack::MsgPackException ex) {
+        xsink->raiseException("PACK-ERROR", ex.err);
+        return QoreValue();
+    }
+}
+
+//! Unpacks serialized messagepack value.
+/**
+    @param value the value to unpack
+    @param mode operation mode
+
+    @returns deserialized value
+
+    @throw ENCODING-ERROR encoding error occured during unpacking
+    @throw INVALID-MODE passed operation mode is invalid
+    @throw UNPACK-ERROR unpacking failed
+
+    @par Example:
+    @code
+hash example = {"compact": True, "schema": 0};
+*binary packed = msgpack_pack(example);
+
+# ---
+
+auto unpacked = msgpack_unpack(packed);
+    @endcode
+ */
+auto msgpack_unpack(binary value, int mode = MSGPACK_SIMPLE_MODE) [flags=RET_VALUE_ONLY] {
+    // check operation mode first
+    if (msgpack::checkOperationMode(xsink, mode))
+        return QoreValue();
+
+    try {
+        QoreValue result(msgpack::intern::msgpack_unpack(
+            value,
+            static_cast<msgpack::OperationMode>(mode),
+            xsink
+        ));
+        if (xsink && *xsink)
+            return QoreValue();
+        return result;
+    }
+    catch (msgpack::MsgPackException ex) {
+        xsink->raiseException("UNPACK-ERROR", ex.err);
+        return QoreValue();
+    }
+}
+//@}

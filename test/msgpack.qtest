@@ -1,0 +1,672 @@
+#!/usr/bin/env qore
+# -*- mode: qore; indent-tabs-mode: nil -*-
+
+%new-style
+%enable-all-warnings
+%require-types
+%strict-args
+
+%requires QUnit
+%requires msgpack
+
+%exec-class MsgPackTest
+
+class MsgPackTest inherits QUnit::Test {
+    constructor() : QUnit::Test("MsgPackTest", "1.0", \ARGV) {
+        addTestCase("Basic simple mode test", \basicSimpleModeTest());
+        addTestCase("Basic Qore mode test", \basicQoreModeTest());
+        addTestCase("MsgPack class simple mode test", \MsgPackSimpleModeTest());
+        addTestCase("MsgPack class Qore mode test", \MsgPackQoreModeTest());
+        addTestCase("Pack test", \packTest());
+        addTestCase("Unpack test", \unpackTest());
+        set_return_value(main());
+    }
+
+    private binary createPackedExt(int exttype, binary bin) {
+        if (exttype < -127) throw "INVALID-EXT-TYPE", "too small ext type (valid range: -127 -- 128)";
+        if (exttype > 128) throw "INVALID-EXT-TYPE", "too large ext type (valid range: -127 -- 128)";
+        int size = bin.size();
+        if (size == 1) {
+            return <d4> + exttype.encodeMsb(1) + bin;
+        }
+        if (size == 2) {
+            return <d5> + exttype.encodeMsb(1) + bin;
+        }
+        if (size == 4) {
+            return <d6> + exttype.encodeMsb(1) + bin;
+        }
+        if (size == 8) {
+            return <d7> + exttype.encodeMsb(1) + bin;
+        }
+        if (size == 16) {
+            return <d8> + exttype.encodeMsb(1) + bin;
+        }
+        if (size < 256) {
+            return <c7> + size.encodeMsb(2)[0] + exttype.encodeMsb(1) + bin;
+        }
+        if (size < 65535) {
+            return <c8> + size.encodeMsb(4)[0..1] + exttype.encodeMsb(1) + bin;
+        }
+        if (size < 4294967296) {
+            return <c9> + size.encodeMsb(8)[0..3] + size.encodeMsb(1) + exttype.encodeMsb(1) + bin;
+        }
+        throw "TOO-LARGE", "too large binary";
+    }
+
+    basicSimpleModeTest() {
+        binary b;
+
+        # nothing
+        b = msgpack_pack(NOTHING);
+        assertEq(NOTHING, msgpack_unpack(b));
+
+        # null
+        b = msgpack_pack(NULL);
+        assertEq(NOTHING, msgpack_unpack(b));
+
+        # bool
+        b = msgpack_pack(True);
+        assertEq(True, msgpack_unpack(b));
+        b = msgpack_pack(False);
+        assertEq(False, msgpack_unpack(b));
+
+        # int
+        b = msgpack_pack(0);
+        assertEq(0, msgpack_unpack(b));
+        b = msgpack_pack(12345);
+        assertEq(12345, msgpack_unpack(b));
+        b = msgpack_pack(-12345);
+        assertEq(-12345, msgpack_unpack(b));
+        b = msgpack_pack(Qore::MAXINT);
+        assertEq(Qore::MAXINT, msgpack_unpack(b));
+        b = msgpack_pack(Qore::MININT);
+        assertEq(Qore::MININT, msgpack_unpack(b));
+
+        # float
+        b = msgpack_pack(0.0);
+        assertEq(0.0, msgpack_unpack(b));
+        b = msgpack_pack(2.71);
+        assertEq(2.71, msgpack_unpack(b));
+        b = msgpack_pack(-2.71);
+        assertEq(-2.71, msgpack_unpack(b));
+        b = msgpack_pack(@nan@);
+        assertTrue(msgpack_unpack(b).nanp());
+        b = msgpack_pack(@inf@);
+        assertTrue(msgpack_unpack(b).infp());
+
+        # string
+        b = msgpack_pack("");
+        assertEq("", msgpack_unpack(b));
+        b = msgpack_pack("abc");
+        assertEq("abc", msgpack_unpack(b));
+        b = msgpack_pack("Příliš žluťoučký kůň úpěl ďábelské ódy");
+        assertEq("Příliš žluťoučký kůň úpěl ďábelské ódy", msgpack_unpack(b));
+        b = msgpack_pack("\r\n");
+        assertEq("\r\n", msgpack_unpack(b));
+
+        # binary
+        b = msgpack_pack(binary());
+        assertEq(binary(), msgpack_unpack(b));
+        b = msgpack_pack(<feed>);
+        assertEq(<feed>, msgpack_unpack(b));
+
+        # absolute dates
+        b = msgpack_pack(2018-02-01T07:30:42+01:00);
+        assertEq("2018-02-01T07:30:42+01:00", msgpack_unpack(b));
+        b = msgpack_pack(2018-02-01T07:30:42.0034+01:00);
+        assertEq("2018-02-01T07:30:42.003400+01:00", msgpack_unpack(b));
+
+        # relative dates
+        b = msgpack_pack(0s);
+        assertEq("P0D", msgpack_unpack(b));
+
+        b = msgpack_pack(years(1));
+        assertEq("P1Y", msgpack_unpack(b));
+        b = msgpack_pack(years(-1));
+        assertEq("P-1Y", msgpack_unpack(b));
+
+        b = msgpack_pack(months(1));
+        assertEq("P1M", msgpack_unpack(b));
+        b = msgpack_pack(months(-1));
+        assertEq("P-1M", msgpack_unpack(b));
+
+        b = msgpack_pack(days(1));
+        assertEq("P1D", msgpack_unpack(b));
+        b = msgpack_pack(days(-1));
+        assertEq("P-1D", msgpack_unpack(b));
+
+        b = msgpack_pack(1h);
+        assertEq("PT1H", msgpack_unpack(b));
+        b = msgpack_pack(-1h);
+        assertEq("PT-1H", msgpack_unpack(b));
+
+        b = msgpack_pack(1m);
+        assertEq("PT1M", msgpack_unpack(b));
+        b = msgpack_pack(-1m);
+        assertEq("PT-1M", msgpack_unpack(b));
+
+        b = msgpack_pack(1s);
+        assertEq("PT1S", msgpack_unpack(b));
+        b = msgpack_pack(-1s);
+        assertEq("PT-1S", msgpack_unpack(b));
+
+        b = msgpack_pack(date(3700.12345));
+        assertEq("PT1H1M40.12345S", msgpack_unpack(b));
+
+        # number
+        b = msgpack_pack(0.0n);
+        assertEq(0.0, msgpack_unpack(b));
+        b = msgpack_pack(2.71n);
+        assertEq(2.71, msgpack_unpack(b));
+        b = msgpack_pack(-2.71n);
+        assertEq(-2.71, msgpack_unpack(b));
+        b = msgpack_pack(@nan@n);
+        assertTrue(msgpack_unpack(b).nanp());
+        b = msgpack_pack(@inf@n);
+        assertTrue(msgpack_unpack(b).infp());
+
+        # list
+        b = msgpack_pack(list());
+        assertEq(list(), msgpack_unpack(b));
+        b = msgpack_pack((1, 2, 3));
+        assertEq((1, 2, 3), msgpack_unpack(b));
+        b = msgpack_pack((1, "abc", True));
+        assertEq((1, "abc", True), msgpack_unpack(b));
+        b = msgpack_pack((1, ("abc", True)));
+        assertEq((1, ("abc", True)), msgpack_unpack(b));
+        b = msgpack_pack((1, {"a": True}));
+        assertEq((1, {"a": True}), msgpack_unpack(b));
+
+        # hash
+        b = msgpack_pack({});
+        assertEq({}, msgpack_unpack(b));
+        b = msgpack_pack({"a": 3, "b": "xyz", "c": True});
+        assertEq({"a": 3, "b": "xyz", "c": True}, msgpack_unpack(b));
+        b = msgpack_pack({"a": 1, "b": {"c": True}});
+        assertEq({"a": 1, "b": {"c": True}}, msgpack_unpack(b));
+        b = msgpack_pack({"a": 1, "b": (1, 2, 3)});
+        assertEq({"a": 1, "b": (1, 2, 3)}, msgpack_unpack(b));
+    }
+
+    basicQoreModeTest() {
+        binary b;
+
+        # nothing
+        b = msgpack_pack(NOTHING, MSGPACK_QORE_MODE);
+        assertEq(NOTHING, msgpack_unpack(b, MSGPACK_QORE_MODE));
+
+        # null
+        b = msgpack_pack(NULL, MSGPACK_QORE_MODE);
+        assertEq(NULL, msgpack_unpack(b, MSGPACK_QORE_MODE));
+
+        # bool
+        b = msgpack_pack(True, MSGPACK_QORE_MODE);
+        assertEq(True, msgpack_unpack(b, MSGPACK_QORE_MODE));
+        b = msgpack_pack(False, MSGPACK_QORE_MODE);
+        assertEq(False, msgpack_unpack(b, MSGPACK_QORE_MODE));
+
+        # int
+        b = msgpack_pack(0, MSGPACK_QORE_MODE);
+        assertEq(0, msgpack_unpack(b, MSGPACK_QORE_MODE));
+        b = msgpack_pack(12345, MSGPACK_QORE_MODE);
+        assertEq(12345, msgpack_unpack(b, MSGPACK_QORE_MODE));
+        b = msgpack_pack(-12345, MSGPACK_QORE_MODE);
+        assertEq(-12345, msgpack_unpack(b, MSGPACK_QORE_MODE));
+        b = msgpack_pack(Qore::MAXINT, MSGPACK_QORE_MODE);
+        assertEq(Qore::MAXINT, msgpack_unpack(b, MSGPACK_QORE_MODE));
+        b = msgpack_pack(Qore::MININT, MSGPACK_QORE_MODE);
+        assertEq(Qore::MININT, msgpack_unpack(b, MSGPACK_QORE_MODE));
+
+        # float
+        b = msgpack_pack(0.0, MSGPACK_QORE_MODE);
+        assertEq(0.0, msgpack_unpack(b, MSGPACK_QORE_MODE));
+        b = msgpack_pack(2.71, MSGPACK_QORE_MODE);
+        assertEq(2.71, msgpack_unpack(b, MSGPACK_QORE_MODE));
+        b = msgpack_pack(-2.71, MSGPACK_QORE_MODE);
+        assertEq(-2.71, msgpack_unpack(b, MSGPACK_QORE_MODE));
+        b = msgpack_pack(@nan@, MSGPACK_QORE_MODE);
+        assertTrue(msgpack_unpack(b, MSGPACK_QORE_MODE).nanp());
+        b = msgpack_pack(@inf@, MSGPACK_QORE_MODE);
+        assertTrue(msgpack_unpack(b, MSGPACK_QORE_MODE).infp());
+
+        # string
+        b = msgpack_pack("", MSGPACK_QORE_MODE);
+        assertEq("", msgpack_unpack(b, MSGPACK_QORE_MODE));
+        b = msgpack_pack("abc", MSGPACK_QORE_MODE);
+        assertEq("abc", msgpack_unpack(b, MSGPACK_QORE_MODE));
+        b = msgpack_pack("Příliš žluťoučký kůň úpěl ďábelské ódy", MSGPACK_QORE_MODE);
+        assertEq("Příliš žluťoučký kůň úpěl ďábelské ódy", msgpack_unpack(b, MSGPACK_QORE_MODE));
+        b = msgpack_pack("\r\n", MSGPACK_QORE_MODE);
+        assertEq("\r\n", msgpack_unpack(b, MSGPACK_QORE_MODE));
+
+        # string with non-utf8 encoding
+        string utf16 = convert_encoding("Příliš žluťoučký kůň úpěl ďábelské ódy", "UTF-16");
+        string utf16be = convert_encoding("Příliš žluťoučký kůň úpěl ďábelské ódy", "UTF-16BE");
+        string utf16le = convert_encoding("Příliš žluťoučký kůň úpěl ďábelské ódy", "UTF-16LE");
+        string iso88592 = convert_encoding("Příliš žluťoučký kůň úpěl ďábelské ódy", "ISO-8859-2");
+
+        b = msgpack_pack(utf16, MSGPACK_QORE_MODE);
+        assertEq(utf16, msgpack_unpack(b, MSGPACK_QORE_MODE));
+        b = msgpack_pack(utf16be, MSGPACK_QORE_MODE);
+        assertEq(utf16be, msgpack_unpack(b, MSGPACK_QORE_MODE));
+        b = msgpack_pack(utf16le, MSGPACK_QORE_MODE);
+        assertEq(utf16le, msgpack_unpack(b, MSGPACK_QORE_MODE));
+        b = msgpack_pack(iso88592, MSGPACK_QORE_MODE);
+        assertEq(iso88592, msgpack_unpack(b, MSGPACK_QORE_MODE));
+
+        # binary
+        b = msgpack_pack(binary(), MSGPACK_QORE_MODE);
+        assertEq(binary(), msgpack_unpack(b, MSGPACK_QORE_MODE));
+        b = msgpack_pack(<feed>, MSGPACK_QORE_MODE);
+        assertEq(<feed>, msgpack_unpack(b, MSGPACK_QORE_MODE));
+
+        # date
+        b = msgpack_pack(2018-02-01T07:30:42+01:00, MSGPACK_QORE_MODE);
+        assertEq(2018-02-01T07:30:42+01:00, msgpack_unpack(b, MSGPACK_QORE_MODE));
+        b = msgpack_pack(2018-02-01T07:30:42.0034+01:00, MSGPACK_QORE_MODE);
+        assertEq(2018-02-01T07:30:42.0034+01:00, msgpack_unpack(b, MSGPACK_QORE_MODE));
+
+        # relative dates
+        b = msgpack_pack(0s, MSGPACK_QORE_MODE);
+        assertEq(0s, msgpack_unpack(b, MSGPACK_QORE_MODE));
+
+        b = msgpack_pack(years(1), MSGPACK_QORE_MODE);
+        assertEq(years(1), msgpack_unpack(b, MSGPACK_QORE_MODE));
+        b = msgpack_pack(years(-1), MSGPACK_QORE_MODE);
+        assertEq(years(-1), msgpack_unpack(b, MSGPACK_QORE_MODE));
+
+        b = msgpack_pack(months(1), MSGPACK_QORE_MODE);
+        assertEq(months(1), msgpack_unpack(b, MSGPACK_QORE_MODE));
+        b = msgpack_pack(months(-1), MSGPACK_QORE_MODE);
+        assertEq(months(-1), msgpack_unpack(b, MSGPACK_QORE_MODE));
+
+        b = msgpack_pack(days(1), MSGPACK_QORE_MODE);
+        assertEq(days(1), msgpack_unpack(b, MSGPACK_QORE_MODE));
+        b = msgpack_pack(days(-1), MSGPACK_QORE_MODE);
+        assertEq(days(-1), msgpack_unpack(b, MSGPACK_QORE_MODE));
+
+        b = msgpack_pack(1h, MSGPACK_QORE_MODE);
+        assertEq(1h, msgpack_unpack(b, MSGPACK_QORE_MODE));
+        b = msgpack_pack(-1h, MSGPACK_QORE_MODE);
+        assertEq(-1h, msgpack_unpack(b, MSGPACK_QORE_MODE));
+
+        b = msgpack_pack(1m, MSGPACK_QORE_MODE);
+        assertEq(1m, msgpack_unpack(b, MSGPACK_QORE_MODE));
+        b = msgpack_pack(-1m, MSGPACK_QORE_MODE);
+        assertEq(-1m, msgpack_unpack(b, MSGPACK_QORE_MODE));
+
+        b = msgpack_pack(1s, MSGPACK_QORE_MODE);
+        assertEq(1s, msgpack_unpack(b, MSGPACK_QORE_MODE));
+        b = msgpack_pack(-1s, MSGPACK_QORE_MODE);
+        assertEq(-1s, msgpack_unpack(b, MSGPACK_QORE_MODE));
+
+        b = msgpack_pack(date(3700.12345), MSGPACK_QORE_MODE);
+        assertEq(date(3700.12345), msgpack_unpack(b, MSGPACK_QORE_MODE));
+
+        # number
+        b = msgpack_pack(0.0n, MSGPACK_QORE_MODE);
+        assertEq(0.0n, msgpack_unpack(b, MSGPACK_QORE_MODE));
+        b = msgpack_pack(2.71n, MSGPACK_QORE_MODE);
+        assertEq(2.71n, msgpack_unpack(b, MSGPACK_QORE_MODE));
+        b = msgpack_pack(-2.71n, MSGPACK_QORE_MODE);
+        assertEq(-2.71n, msgpack_unpack(b, MSGPACK_QORE_MODE));
+        b = msgpack_pack(@nan@n, MSGPACK_QORE_MODE);
+        assertTrue(msgpack_unpack(b, MSGPACK_QORE_MODE).nanp());
+        b = msgpack_pack(@inf@n, MSGPACK_QORE_MODE);
+        assertTrue(msgpack_unpack(b, MSGPACK_QORE_MODE).infp());
+        b = msgpack_pack(-@inf@n, MSGPACK_QORE_MODE);
+        assertTrue(msgpack_unpack(b, MSGPACK_QORE_MODE).infp());
+        assertTrue(msgpack_unpack(b, MSGPACK_QORE_MODE) < 0.0n);
+
+        # list
+        b = msgpack_pack(list(), MSGPACK_QORE_MODE);
+        assertEq(list(), msgpack_unpack(b, MSGPACK_QORE_MODE));
+        b = msgpack_pack((1, 2, 3), MSGPACK_QORE_MODE);
+        assertEq((1, 2, 3), msgpack_unpack(b, MSGPACK_QORE_MODE));
+        b = msgpack_pack((1, "abc", True), MSGPACK_QORE_MODE);
+        assertEq((1, "abc", True), msgpack_unpack(b, MSGPACK_QORE_MODE));
+        b = msgpack_pack((1, ("abc", True)), MSGPACK_QORE_MODE);
+        assertEq((1, ("abc", True)), msgpack_unpack(b, MSGPACK_QORE_MODE));
+        b = msgpack_pack((1, {"a": True}), MSGPACK_QORE_MODE);
+        assertEq((1, {"a": True}), msgpack_unpack(b, MSGPACK_QORE_MODE));
+
+        # hash
+        b = msgpack_pack({}, MSGPACK_QORE_MODE);
+        assertEq({}, msgpack_unpack(b, MSGPACK_QORE_MODE));
+        b = msgpack_pack({"a": 3, "b": "xyz", "c": True}, MSGPACK_QORE_MODE);
+        assertEq({"a": 3, "b": "xyz", "c": True}, msgpack_unpack(b, MSGPACK_QORE_MODE));
+        b = msgpack_pack({"a": 1, "b": {"c": True}}, MSGPACK_QORE_MODE);
+        assertEq({"a": 1, "b": {"c": True}}, msgpack_unpack(b, MSGPACK_QORE_MODE));
+        b = msgpack_pack({"a": 1, "b": (1, 2, 3)}, MSGPACK_QORE_MODE);
+        assertEq({"a": 1, "b": (1, 2, 3)}, msgpack_unpack(b, MSGPACK_QORE_MODE));
+    }
+
+    MsgPackSimpleModeTest() {
+        MsgPack mp(MSGPACK_SIMPLE_MODE);
+        binary b;
+
+        # nothing
+        b = mp.pack(NOTHING);
+        assertEq(NOTHING, mp.unpack(b));
+
+        # null
+        b = mp.pack(NULL);
+        assertEq(NOTHING, mp.unpack(b));
+
+        # bool
+        b = mp.pack(True);
+        assertEq(True, mp.unpack(b));
+        b = mp.pack(False);
+        assertEq(False, mp.unpack(b));
+
+        # int
+        b = mp.pack(0);
+        assertEq(0, mp.unpack(b));
+        b = mp.pack(12345);
+        assertEq(12345, mp.unpack(b));
+        b = mp.pack(-12345);
+        assertEq(-12345, mp.unpack(b));
+        b = mp.pack(Qore::MAXINT);
+        assertEq(Qore::MAXINT, mp.unpack(b));
+        b = mp.pack(Qore::MININT);
+        assertEq(Qore::MININT, mp.unpack(b));
+
+        # float
+        b = mp.pack(0.0);
+        assertEq(0.0, mp.unpack(b));
+        b = mp.pack(2.71);
+        assertEq(2.71, mp.unpack(b));
+        b = mp.pack(-2.71);
+        assertEq(-2.71, mp.unpack(b));
+        b = mp.pack(@nan@);
+        assertTrue(mp.unpack(b).nanp());
+        b = mp.pack(@inf@);
+        assertTrue(mp.unpack(b).infp());
+
+        # string
+        b = mp.pack("");
+        assertEq("", mp.unpack(b));
+        b = mp.pack("abc");
+        assertEq("abc", mp.unpack(b));
+        b = mp.pack("Příliš žluťoučký kůň úpěl ďábelské ódy");
+        assertEq("Příliš žluťoučký kůň úpěl ďábelské ódy", mp.unpack(b));
+        b = mp.pack("\r\n");
+        assertEq("\r\n", mp.unpack(b));
+
+        # binary
+        b = mp.pack(binary());
+        assertEq(binary(), mp.unpack(b));
+        b = mp.pack(<feed>);
+        assertEq(<feed>, mp.unpack(b));
+
+        # absolute dates
+        b = mp.pack(2018-02-01T07:30:42+01:00);
+        assertEq("2018-02-01T07:30:42+01:00", mp.unpack(b));
+        b = mp.pack(2018-02-01T07:30:42.0034+01:00);
+        assertEq("2018-02-01T07:30:42.003400+01:00", mp.unpack(b));
+
+        # relative dates
+        b = mp.pack(0s);
+        assertEq("P0D", mp.unpack(b));
+
+        b = mp.pack(years(1));
+        assertEq("P1Y", mp.unpack(b));
+        b = mp.pack(years(-1));
+        assertEq("P-1Y", mp.unpack(b));
+
+        b = mp.pack(months(1));
+        assertEq("P1M", mp.unpack(b));
+        b = mp.pack(months(-1));
+        assertEq("P-1M", mp.unpack(b));
+
+        b = mp.pack(days(1));
+        assertEq("P1D", mp.unpack(b));
+        b = mp.pack(days(-1));
+        assertEq("P-1D", mp.unpack(b));
+
+        b = mp.pack(1h);
+        assertEq("PT1H", mp.unpack(b));
+        b = mp.pack(-1h);
+        assertEq("PT-1H", mp.unpack(b));
+
+        b = mp.pack(1m);
+        assertEq("PT1M", mp.unpack(b));
+        b = mp.pack(-1m);
+        assertEq("PT-1M", mp.unpack(b));
+
+        b = mp.pack(1s);
+        assertEq("PT1S", mp.unpack(b));
+        b = mp.pack(-1s);
+        assertEq("PT-1S", mp.unpack(b));
+
+        b = mp.pack(date(3700.12345));
+        assertEq("PT1H1M40.12345S", mp.unpack(b));
+
+        # number
+        b = mp.pack(0.0n);
+        assertEq(0.0, mp.unpack(b));
+        b = mp.pack(2.71n);
+        assertEq(2.71, mp.unpack(b));
+        b = mp.pack(-2.71n);
+        assertEq(-2.71, mp.unpack(b));
+        b = mp.pack(@nan@n);
+        assertTrue(mp.unpack(b).nanp());
+        b = mp.pack(@inf@n);
+        assertTrue(mp.unpack(b).infp());
+
+        # list
+        b = mp.pack(list());
+        assertEq(list(), mp.unpack(b));
+        b = mp.pack((1, 2, 3));
+        assertEq((1, 2, 3), mp.unpack(b));
+        b = mp.pack((1, "abc", True));
+        assertEq((1, "abc", True), mp.unpack(b));
+        b = mp.pack((1, ("abc", True)));
+        assertEq((1, ("abc", True)), mp.unpack(b));
+        b = mp.pack((1, {"a": True}));
+        assertEq((1, {"a": True}), mp.unpack(b));
+
+        # hash
+        b = mp.pack({});
+        assertEq({}, mp.unpack(b));
+        b = mp.pack({"a": 3, "b": "xyz", "c": True});
+        assertEq({"a": 3, "b": "xyz", "c": True}, mp.unpack(b));
+        b = mp.pack({"a": 1, "b": {"c": True}});
+        assertEq({"a": 1, "b": {"c": True}}, mp.unpack(b));
+        b = mp.pack({"a": 1, "b": (1, 2, 3)});
+        assertEq({"a": 1, "b": (1, 2, 3)}, mp.unpack(b));
+    }
+
+    MsgPackQoreModeTest() {
+        MsgPack mp(MSGPACK_QORE_MODE);
+        binary b;
+
+        # nothing
+        b = mp.pack(NOTHING);
+        assertEq(NOTHING, mp.unpack(b));
+
+        # null
+        b = mp.pack(NULL);
+        assertEq(NULL, mp.unpack(b));
+
+        # bool
+        b = mp.pack(True);
+        assertEq(True, mp.unpack(b));
+        b = mp.pack(False);
+        assertEq(False, mp.unpack(b));
+
+        # int
+        b = mp.pack(0);
+        assertEq(0, mp.unpack(b));
+        b = mp.pack(12345);
+        assertEq(12345, mp.unpack(b));
+        b = mp.pack(-12345);
+        assertEq(-12345, mp.unpack(b));
+        b = mp.pack(Qore::MAXINT);
+        assertEq(Qore::MAXINT, mp.unpack(b));
+        b = mp.pack(Qore::MININT);
+        assertEq(Qore::MININT, mp.unpack(b));
+
+        # float
+        b = mp.pack(0.0);
+        assertEq(0.0, mp.unpack(b));
+        b = mp.pack(2.71);
+        assertEq(2.71, mp.unpack(b));
+        b = mp.pack(-2.71);
+        assertEq(-2.71, mp.unpack(b));
+        b = mp.pack(@nan@);
+        assertTrue(mp.unpack(b).nanp());
+        b = mp.pack(@inf@);
+        assertTrue(mp.unpack(b).infp());
+
+        # string
+        b = mp.pack("");
+        assertEq("", mp.unpack(b));
+        b = mp.pack("abc");
+        assertEq("abc", mp.unpack(b));
+        b = mp.pack("Příliš žluťoučký kůň úpěl ďábelské ódy");
+        assertEq("Příliš žluťoučký kůň úpěl ďábelské ódy", mp.unpack(b));
+        b = mp.pack("\r\n");
+        assertEq("\r\n", mp.unpack(b));
+
+        # string with non-utf8 encoding
+        string utf16 = convert_encoding("Příliš žluťoučký kůň úpěl ďábelské ódy", "UTF-16");
+        string utf16be = convert_encoding("Příliš žluťoučký kůň úpěl ďábelské ódy", "UTF-16BE");
+        string utf16le = convert_encoding("Příliš žluťoučký kůň úpěl ďábelské ódy", "UTF-16LE");
+        string iso88592 = convert_encoding("Příliš žluťoučký kůň úpěl ďábelské ódy", "ISO-8859-2");
+
+        b = mp.pack(utf16);
+        assertEq(utf16, mp.unpack(b));
+        b = mp.pack(utf16be);
+        assertEq(utf16be, mp.unpack(b));
+        b = mp.pack(utf16le);
+        assertEq(utf16le, mp.unpack(b));
+        b = mp.pack(iso88592);
+        assertEq(iso88592, mp.unpack(b));
+
+        # binary
+        b = mp.pack(binary());
+        assertEq(binary(), mp.unpack(b));
+        b = mp.pack(<feed>);
+        assertEq(<feed>, mp.unpack(b));
+
+        # date
+        b = mp.pack(2018-02-01T07:30:42+01:00);
+        assertEq(2018-02-01T07:30:42+01:00, mp.unpack(b));
+        b = mp.pack(2018-02-01T07:30:42.0034+01:00);
+        assertEq(2018-02-01T07:30:42.0034+01:00, mp.unpack(b));
+
+        # relative dates
+        b = mp.pack(0s);
+        assertEq(0s, mp.unpack(b));
+
+        b = mp.pack(years(1));
+        assertEq(years(1), mp.unpack(b));
+        b = mp.pack(years(-1));
+        assertEq(years(-1), mp.unpack(b));
+
+        b = mp.pack(months(1));
+        assertEq(months(1), mp.unpack(b));
+        b = mp.pack(months(-1));
+        assertEq(months(-1), mp.unpack(b));
+
+        b = mp.pack(days(1));
+        assertEq(days(1), mp.unpack(b));
+        b = mp.pack(days(-1));
+        assertEq(days(-1), mp.unpack(b));
+
+        b = mp.pack(1h);
+        assertEq(1h, mp.unpack(b));
+        b = mp.pack(-1h);
+        assertEq(-1h, mp.unpack(b));
+
+        b = mp.pack(1m);
+        assertEq(1m, mp.unpack(b));
+        b = mp.pack(-1m);
+        assertEq(-1m, mp.unpack(b));
+
+        b = mp.pack(1s);
+        assertEq(1s, mp.unpack(b));
+        b = mp.pack(-1s);
+        assertEq(-1s, mp.unpack(b));
+
+        b = mp.pack(date(3700.12345));
+        assertEq(date(3700.12345), mp.unpack(b));
+
+        # number
+        b = mp.pack(0.0n);
+        assertEq(0.0n, mp.unpack(b));
+        b = mp.pack(2.71n);
+        assertEq(2.71n, mp.unpack(b));
+        b = mp.pack(-2.71n);
+        assertEq(-2.71n, mp.unpack(b));
+        b = mp.pack(@nan@n);
+        assertTrue(mp.unpack(b).nanp());
+        b = mp.pack(@inf@n);
+        assertTrue(mp.unpack(b).infp());
+        b = mp.pack(-@inf@n);
+        assertTrue(mp.unpack(b).infp());
+        assertTrue(mp.unpack(b) < 0.0n);
+
+        # list
+        b = mp.pack(list());
+        assertEq(list(), mp.unpack(b));
+        b = mp.pack((1, 2, 3));
+        assertEq((1, 2, 3), mp.unpack(b));
+        b = mp.pack((1, "abc", True));
+        assertEq((1, "abc", True), mp.unpack(b));
+        b = mp.pack((1, ("abc", True)));
+        assertEq((1, ("abc", True)), mp.unpack(b));
+        b = mp.pack((1, {"a": True}));
+        assertEq((1, {"a": True}), mp.unpack(b));
+
+        # hash
+        b = mp.pack({});
+        assertEq({}, mp.unpack(b));
+        b = mp.pack({"a": 3, "b": "xyz", "c": True});
+        assertEq({"a": 3, "b": "xyz", "c": True}, mp.unpack(b));
+        b = mp.pack({"a": 1, "b": {"c": True}});
+        assertEq({"a": 1, "b": {"c": True}}, mp.unpack(b));
+        b = mp.pack({"a": 1, "b": (1, 2, 3)});
+        assertEq({"a": 1, "b": (1, 2, 3)}, mp.unpack(b));
+    }
+
+    packTest() {
+        # TODO
+    }
+
+    unpackTest() {
+        binary b;
+        auto rv;
+
+        # TODO
+        #assertThrows("UNPACK-ERROR", sub() { msgpack_unpack(<ab>); });
+
+        b = createPackedExt(1, <feedface>);
+        rv = msgpack_unpack(b);
+        assertEq(NT_OBJECT, rv.typeCode());
+        assertEq("MsgPackExtension", rv.className());
+        assertEq(1, rv.getExtType());
+        assertEq(<feedface>, rv.getData());
+
+        b = msgpack_pack(convert_encoding("abcd", "UTF-16BE"), MSGPACK_QORE_MODE);
+        rv = msgpack_unpack(b);
+        assertEq(NT_OBJECT, rv.typeCode());
+        assertEq("MsgPackExtension", rv.className());
+
+        b = msgpack_pack(1.0n, MSGPACK_QORE_MODE);
+        rv = msgpack_unpack(b);
+        assertEq(NT_OBJECT, rv.typeCode());
+        assertEq("MsgPackExtension", rv.className());
+
+        b = msgpack_pack(P1H, MSGPACK_QORE_MODE);
+        rv = msgpack_unpack(b);
+        assertEq(NT_OBJECT, rv.typeCode());
+        assertEq("MsgPackExtension", rv.className());
+
+        b = msgpack_pack(NULL, MSGPACK_QORE_MODE);
+        rv = msgpack_unpack(b);
+        assertEq(NT_OBJECT, rv.typeCode());
+        assertEq("MsgPackExtension", rv.className());
+    }
+}
