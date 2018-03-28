@@ -30,6 +30,7 @@
 
 // module sources
 #include "msgpack_enums.h"
+#include "msgpack_extensions.h"
 #include "msgpack_pack.h"
 #include "msgpack_unpack.h"
 #include "MsgPackException.h"
@@ -37,6 +38,16 @@
 
 using msgpack::MSGPACK_SIMPLE_MODE;
 using msgpack::MSGPACK_QORE_MODE;
+
+using msgpack::MSGPACK_EXT_QORE_NULL;
+using msgpack::MSGPACK_EXT_QORE_DATE;
+using msgpack::MSGPACK_EXT_QORE_NUMBER;
+using msgpack::MSGPACK_EXT_QORE_STRING;
+
+using msgpack::MSGPACK_NUMBER_NAN;
+using msgpack::MSGPACK_NUMBER_INF;
+using msgpack::MSGPACK_NUMBER_NINF;
+using msgpack::MSGPACK_NUMBER_NORM;
 
 /** @defgroup msgpack_constants MsgPack Constants
  */
@@ -48,6 +59,30 @@ const MSGPACK_SIMPLE_MODE = MSGPACK_SIMPLE_MODE;
 
 //! Pack data in Qore mode and expect data to be unpacked to be in Qore mode.
 const MSGPACK_QORE_MODE = MSGPACK_QORE_MODE;
+
+//! Extension type ID used for Qore \c NULL values in Qore operation mode.
+const MSGPACK_EXT_QORE_NULL = MSGPACK_EXT_QORE_NULL;
+
+//! Extension type ID used for \c date values in Qore operation mode.
+const MSGPACK_EXT_QORE_DATE = MSGPACK_EXT_QORE_DATE;
+
+//! Extension type ID used for \c number values in Qore operation mode.
+const MSGPACK_EXT_QORE_NUMBER = MSGPACK_EXT_QORE_NUMBER;
+
+//! Extension type ID used for non-UTF8 \c string values in Qore operation mode.
+const MSGPACK_EXT_QORE_STRING = MSGPACK_EXT_QORE_STRING;
+
+//! Number extension subtype used for \c NAN \c number values.
+const MSGPACK_NUMBER_NAN = MSGPACK_NUMBER_NAN;
+
+//! Number extension subtype used for positive infinity \c number values.
+const MSGPACK_NUMBER_INF = MSGPACK_NUMBER_INF;
+
+//! Number extension subtype used for negative infinity \c number values.
+const MSGPACK_NUMBER_NINF = MSGPACK_NUMBER_NINF;
+
+//! Number extension subtype used for normal \c number values.
+const MSGPACK_NUMBER_NORM = MSGPACK_NUMBER_NORM;
 //@}
 
 /** @defgroup msgpack_functions MessagePack Functions
@@ -56,10 +91,10 @@ const MSGPACK_QORE_MODE = MSGPACK_QORE_MODE;
 namespace Qore::msgpack;
 //! Packs passed Qore value.
 /**
-    @param value the value to pack
+    @param value value to pack
     @param mode operation mode
 
-    @returns value serialized into a binary string
+    @return packed value in MessagePack format
 
     @throw ENCODING-ERROR encoding error occured during packing
     @throw INVALID-MODE passed operation mode is invalid
@@ -94,10 +129,10 @@ hash example = {"compact": True, "schema": 0};
 
 //! Unpacks serialized messagepack value.
 /**
-    @param value the value to unpack
+    @param value value to unpack
     @param mode operation mode
 
-    @returns deserialized value
+    @returns unpacked Qore value
 
     @throw ENCODING-ERROR encoding error occured during unpacking
     @throw INVALID-MODE passed operation mode is invalid
