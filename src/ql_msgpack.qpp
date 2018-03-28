@@ -49,10 +49,34 @@ using msgpack::MSGPACK_NUMBER_INF;
 using msgpack::MSGPACK_NUMBER_NINF;
 using msgpack::MSGPACK_NUMBER_NORM;
 
-/** @defgroup msgpack_constants MsgPack Constants
+using msgpack::QE_USASCII;
+using msgpack::QE_UTF8;
+using msgpack::QE_UTF16;
+using msgpack::QE_UTF16BE;
+using msgpack::QE_UTF16LE;
+using msgpack::QE_ISO_8859_1;
+using msgpack::QE_ISO_8859_2;
+using msgpack::QE_ISO_8859_3;
+using msgpack::QE_ISO_8859_4;
+using msgpack::QE_ISO_8859_5;
+using msgpack::QE_ISO_8859_6;
+using msgpack::QE_ISO_8859_7;
+using msgpack::QE_ISO_8859_8;
+using msgpack::QE_ISO_8859_9;
+using msgpack::QE_ISO_8859_10;
+using msgpack::QE_ISO_8859_11;
+using msgpack::QE_ISO_8859_13;
+using msgpack::QE_ISO_8859_14;
+using msgpack::QE_ISO_8859_15;
+using msgpack::QE_ISO_8859_16;
+using msgpack::QE_KOI8_R;
+using msgpack::QE_KOI8_U;
+using msgpack::QE_KOI7;
+
+/** @defgroup msgpack_constants MessagePack Constants
  */
 //@{
-namespace Qore::msgpack;
+namespace msgpack;
 
 //! Pack data in simple mode and expect data to be unpacked to be in simple mode.
 const MSGPACK_SIMPLE_MODE = MSGPACK_SIMPLE_MODE;
@@ -83,12 +107,81 @@ const MSGPACK_NUMBER_NINF = MSGPACK_NUMBER_NINF;
 
 //! Number extension subtype used for normal \c number values.
 const MSGPACK_NUMBER_NORM = MSGPACK_NUMBER_NORM;
+
+//! Encoding ID used for \c US-ASCII.
+const QE_USASCII = QE_USASCII;
+
+//! Encoding ID used for \c UTF-8.
+const QE_UTF8 = QE_UTF8;
+
+//! Encoding ID used for \c UTF-16.
+const QE_UTF16 = QE_UTF16;
+
+//! Encoding ID used for \c UTF-16BE.
+const QE_UTF16BE = QE_UTF16BE;
+
+//! Encoding ID used for \c UTF-16LE.
+const QE_UTF16LE = QE_UTF16LE;
+
+//! Encoding ID used for \c ISO-8859-1.
+const QE_ISO_8859_1 = QE_ISO_8859_1;
+
+//! Encoding ID used for \c ISO-8859-2.
+const QE_ISO_8859_2 = QE_ISO_8859_2;
+
+//! Encoding ID used for \c ISO-8859-3.
+const QE_ISO_8859_3 = QE_ISO_8859_3;
+
+//! Encoding ID used for \c ISO-8859-4.
+const QE_ISO_8859_4 = QE_ISO_8859_4;
+
+//! Encoding ID used for \c ISO-8859-5.
+const QE_ISO_8859_5 = QE_ISO_8859_5;
+
+//! Encoding ID used for \c ISO-8859-6.
+const QE_ISO_8859_6 = QE_ISO_8859_6;
+
+//! Encoding ID used for \c ISO-8859-7.
+const QE_ISO_8859_7 = QE_ISO_8859_7;
+
+//! Encoding ID used for \c ISO-8859-8.
+const QE_ISO_8859_8 = QE_ISO_8859_8;
+
+//! Encoding ID used for \c ISO-8859-9.
+const QE_ISO_8859_9 = QE_ISO_8859_9;
+
+//! Encoding ID used for \c ISO-8859-10.
+const QE_ISO_8859_10 = QE_ISO_8859_10;
+
+//! Encoding ID used for \c ISO-8859-11.
+const QE_ISO_8859_11 = QE_ISO_8859_11;
+
+//! Encoding ID used for \c ISO-8859-13.
+const QE_ISO_8859_13 = QE_ISO_8859_13;
+
+//! Encoding ID used for \c ISO-8859-14.
+const QE_ISO_8859_14 = QE_ISO_8859_14;
+
+//! Encoding ID used for \c ISO-8859-15.
+const QE_ISO_8859_15 = QE_ISO_8859_15;
+
+//! Encoding ID used for \c ISO-8859-16.
+const QE_ISO_8859_16 = QE_ISO_8859_16;
+
+//! Encoding ID used for \c KOI8-R.
+const QE_KOI8_R = QE_KOI8_R;
+
+//! Encoding ID used for \c KOI8-U.
+const QE_KOI8_U = QE_KOI8_U;
+
+//! Encoding ID used for \c KOI7.
+const QE_KOI7 = QE_KOI7;
 //@}
 
 /** @defgroup msgpack_functions MessagePack Functions
  */
 //@{
-namespace Qore::msgpack;
+namespace msgpack;
 //! Packs passed Qore value.
 /**
     @param value value to pack
@@ -127,7 +220,7 @@ hash example = {"compact": True, "schema": 0};
     }
 }
 
-//! Unpacks serialized messagepack value.
+//! Unpacks serialized MessagePack value.
 /**
     @param value value to unpack
     @param mode operation mode

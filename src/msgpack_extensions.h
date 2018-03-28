@@ -82,8 +82,6 @@ namespace intern {
     +-----+--------+---------+-------+--------+----------+--------+----------+
     |  1B |   4B   |   4B    |  4B   |   4B   |    4B    |   4B   |    4B    |
     @endverbatim
-
-    I.e. 1 byte for encoding and the rest for string data.
 */
 inline void msgpack_pack_ext_date(mpack_writer_t* writer, const DateTimeNode* date) {
     char bytes[sizeof(int64_t)];
@@ -191,8 +189,6 @@ inline void msgpack_pack_ext_null(mpack_writer_t* writer) {
     +-----------------------+-------------+-----------------+
     |          1B           |     4B      |      1+ B       |
     @endverbatim
-
-    I.e. 1 byte for encoding and the rest for string data.
 */
 inline void msgpack_pack_ext_number(mpack_writer_t* writer, const QoreNumberNode* number) {
     if (number->nan()) {
