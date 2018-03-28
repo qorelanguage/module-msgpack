@@ -66,6 +66,12 @@ int MsgPack::getOperationMode() {
     @param mode MsgPack module operation mode
 
     @throw INVALID-MODE passed operation mode is invalid
+
+    @par Example:
+    @code
+MsgPack mp();
+mp.setOperationMode(MSGPACK_QORE_MODE);
+    @endcode
  */
 nothing MsgPack::setOperationMode(int mode) {
     if (msgpack::checkOperationMode(xsink, mode))
@@ -76,7 +82,17 @@ nothing MsgPack::setOperationMode(int mode) {
 //! Pack the passed data.
 /**
     @param value value to pack
-    @return packed MessagePack data
+    @return packed value in MessagePack format
+
+    @throw ENCODING-ERROR encoding error occured during packing
+    @throw PACK-ERROR packing failed
+
+    @par Example:
+    @code
+MsgPack mp();
+hash example = {"compact": True, "schema": 0};
+*binary packed = mp.pack(example);
+    @endcode
  */
 *binary MsgPack::pack(auto value) {
     return mp->pack(xsink, value);
@@ -86,6 +102,21 @@ nothing MsgPack::setOperationMode(int mode) {
 /**
     @param value data to unpack
     @return unpacked Qore value
+
+    @throw ENCODING-ERROR encoding error occured during unpacking
+    @throw INVALID-MODE passed operation mode is invalid
+    @throw UNPACK-ERROR unpacking failed
+
+    @par Example:
+    @code
+MsgPack mp();
+hash example = {"compact": True, "schema": 0};
+*binary packed = mp.pack(example);
+
+# ---
+
+auto unpacked = mp.unpack(packed);
+    @endcode
  */
 auto MsgPack::unpack(binary value) {
     return mp->unpack(xsink, value);
