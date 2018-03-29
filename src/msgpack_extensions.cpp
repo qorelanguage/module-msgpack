@@ -109,6 +109,14 @@ void msgpack_pack_ext_date(mpack_writer_t* writer, const DateTimeNode* date) {
     mpack_finish_ext(writer);
 }
 
+void msgpack_pack_ext_ext(mpack_writer_t* writer, const MsgPackExtension* ext) {
+    uint32_t size = ext->getSize();
+
+    mpack_start_ext(writer, ext->getType(), size);
+    mpack_write_bytes(writer, ext->getBuffer(), size);
+    mpack_finish_ext(writer);
+}
+
 void msgpack_pack_ext_null(mpack_writer_t* writer) {
     mpack_write_ext(writer, (int8_t) MSGPACK_EXT_QORE_NULL, nullptr, 0);
 }

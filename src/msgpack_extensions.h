@@ -34,6 +34,9 @@
 // mpack library
 #include "mpack.h"
 
+// module sources
+#include "MsgPackExtension.h"
+
 namespace msgpack {
 
 // extension types 0-127 are available for use by Qore
@@ -78,6 +81,8 @@ namespace intern {
     @endverbatim
 */
 DLLLOCAL void msgpack_pack_ext_date(mpack_writer_t* writer, const DateTimeNode* date);
+
+DLLLOCAL void msgpack_pack_ext_ext(mpack_writer_t* writer, const MsgPackExtension* ext);
 
 DLLLOCAL void msgpack_pack_ext_null(mpack_writer_t* writer);
 

@@ -39,6 +39,7 @@
 #include "msgpack_enums.h"
 #include "msgpack_extensions.h"
 #include "MsgPackException.h"
+#include "QC_MsgPackExtension.h"
 
 namespace msgpack {
 namespace intern {
@@ -222,6 +223,17 @@ void msgpack_pack_qore_node(mpack_writer_t* writer, const AbstractQoreNode* valu
             msgpack_pack_qore_null(writer, mode); break;
         case NT_NUMBER:                     // QoreNumberNode
             msgpack_pack_qore_number(writer, static_cast<const QoreNumberNode*>(value), mode); break;
+        case NT_OBJECT: {
+            const QoreObject* obj = static_cast<const QoreObject*>(value);
+            if (obj->getClass(CID_MSGPACKEXTENSION)) {
+                PrivateDataRefHolder<MsgPackExtension> holder(obj, CID_MSGPACKEXTENSION, xsink);
+                MsgPackExtension* ext = *holder;
+                if (ext)
+                    msgpack_pack_ext_ext(writer, ext);
+                break;
+            }
+            throw msgpack::MsgPackException("serializing objects is not supported");
+        }
         case NT_STRING:                     // QoreStringNode
             msgpack_pack_qore_string(writer, static_cast<const QoreStringNode*>(value), mode, xsink); break;
         default:
@@ -251,6 +263,17 @@ void msgpack_pack_qore_value(mpack_writer_t* writer, QoreValue value, OperationM
             msgpack_pack_qore_null(writer, mode); break;
         case NT_NUMBER:                     // QoreNumberNode
             msgpack_pack_qore_number(writer, static_cast<const QoreNumberNode*>(value.getInternalNode()), mode); break;
+        case NT_OBJECT: {
+            const QoreObject* obj = static_cast<QoreObject*>(value.getInternalNode());
+            if (obj->getClass(CID_MSGPACKEXTENSION)) {
+                PrivateDataRefHolder<MsgPackExtension> holder(obj, CID_MSGPACKEXTENSION, xsink);
+                MsgPackExtension* ext = *holder;
+                if (ext)
+                    msgpack_pack_ext_ext(writer, ext);
+                break;
+            }
+            throw msgpack::MsgPackException("serializing objects is not supported");
+        }
         case NT_STRING:                     // QoreStringNode
             msgpack_pack_qore_string(writer, static_cast<const QoreStringNode*>(value.getInternalNode()), mode, xsink); break;
         default:

@@ -54,6 +54,14 @@ public:
     //! Get extension's data.
     DLLLOCAL BinaryNode* getReferencedData() { data->ref(); return *data; }
 
+    //! Get extension's data (unreferenced).
+    DLLLOCAL BinaryNode* getUnreferencedData() { return *data; }
+
+    //! Get extension's data buffer.
+    DLLLOCAL const char* getBuffer() const {
+        return data ? static_cast<const char*>(data->getPtr()) : nullptr;
+    }
+
     //! Get extension's data size.
     DLLLOCAL size_t getSize() const { return data ? data->size() : 0; };
 };

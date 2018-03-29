@@ -632,7 +632,14 @@ class MsgPackTest inherits QUnit::Test {
     }
 
     packTest() {
-        # TODO
+        *MsgPackExtension ext;
+
+        ext = new MsgPackExtension(3, <fe>);
+        assertEq(<d403fe>, msgpack_pack(ext));
+        ext = new MsgPackExtension(3, <feed>);
+        assertEq(<d503feed>, msgpack_pack(ext));
+        ext = new MsgPackExtension(3, <feedface>);
+        assertEq(<d603feedface>, msgpack_pack(ext));
     }
 
     unpackTest() {
