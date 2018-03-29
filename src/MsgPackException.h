@@ -28,6 +28,9 @@
 #ifndef _QORE_MODULE_MSGPACK_MSGPACKEXCEPTION_H
 #define _QORE_MODULE_MSGPACK_MSGPACKEXCEPTION_H
 
+// qore
+#include "qore/Qore.h"
+
 // mpack library
 #include "mpack.h"
 
@@ -46,12 +49,12 @@ extern const char* MpackErrorUnknownIntern;
 //! MessagePack module exception class.
 class MsgPackException {
 public:
-    MsgPackException(const char* nerr = MpackErrorUnknownIntern) : err(nerr) {}
+    DLLLOCAL MsgPackException(const char* nerr = MpackErrorUnknownIntern) : err(nerr) {}
 
     const char* err;
 };
 
-MsgPackException getMsgPackException(mpack_error_t error);
+DLLLOCAL MsgPackException getMsgPackException(mpack_error_t error);
 
 } // namespace msgpack
 
