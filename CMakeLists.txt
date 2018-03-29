@@ -42,8 +42,12 @@ set(QPP_SRC
 )
 
 set(CPP_SRC
-    src/msgpack-module.cpp
     src/mpack.c
+    src/msgpack-module.cpp
+    src/msgpack_enums.cpp
+    src/msgpack_extensions.cpp
+    src/msgpack_pack.cpp
+    src/msgpack_unpack.cpp
     src/MsgPackException.cpp
 )
 
