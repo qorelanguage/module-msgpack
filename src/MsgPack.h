@@ -32,6 +32,7 @@
 #include "qore/Qore.h"
 
 // module sources
+#include "msgpack_enums.h"
 #include "msgpack_pack.h"
 #include "msgpack_unpack.h"
 #include "MsgPackException.h"
@@ -40,7 +41,7 @@ namespace msgpack {
 
 //! MessagePack class used for packing and unpacking data.
 /**
-    Serves as encapsulation for the msgpack module methods @ref msgpack_pack and @ref msgpack_unpack.
+    Serves as encapsulation for the msgpack module methods @ref msgpack::msgpack_pack "msgpack_pack()" and @ref msgpack::msgpack_unpack "msgpack_unpack()"
 */
 class MsgPack : public AbstractPrivateData {
 private:
@@ -70,7 +71,7 @@ public:
         return QoreValue();
     }
 
-    //! Unpacked passed MessagePack data.
+    //! Unpack passed MessagePack data.
     QoreValue unpack(ExceptionSink* xsink, QoreValue value) {
         try {
             QoreValue result(msgpack::intern::msgpack_unpack(
