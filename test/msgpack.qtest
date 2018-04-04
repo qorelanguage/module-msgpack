@@ -17,8 +17,7 @@ class MsgPackTest inherits QUnit::Test {
         addTestCase("Basic Qore mode test", \basicQoreModeTest());
         addTestCase("MsgPack class simple mode test", \MsgPackSimpleModeTest());
         addTestCase("MsgPack class Qore mode test", \MsgPackQoreModeTest());
-        addTestCase("Pack test", \packTest());
-        addTestCase("Unpack test", \unpackTest());
+        addTestCase("Pack/Unpack test", \packUnpackTest());
         set_return_value(main());
     }
 
@@ -631,42 +630,56 @@ class MsgPackTest inherits QUnit::Test {
         assertEq({"a": 1, "b": (1, 2, 3)}, mp.unpack(b));
     }
 
-    packTest() {
-        # TODO
-    }
-
-    unpackTest() {
+    packUnpackTest() {
         binary b;
         auto rv;
 
-        # TODO
-        #assertThrows("UNPACK-ERROR", sub() { msgpack_unpack(<ab>); });
+        assertThrows("UNPACK-ERROR", sub() { msgpack_unpack(<ab>); });
 
-        b = createPackedExt(1, <feedface>);
-        rv = msgpack_unpack(b);
-        assertEq(NT_OBJECT, rv.typeCode());
-        assertEq("MsgPackExtension", rv.className());
-        assertEq(1, rv.getExtType());
-        assertEq(<feedface>, rv.getData());
+        {
+            binary bin = <feedface>;
+            b = createPackedExt(1, bin);
+            rv = msgpack_unpack(b);
+            assertEq(NT_OBJECT, rv.typeCode());
+            assertEq("MsgPackExtension", rv.className());
+            assertEq(1, rv.getExtType());
+            assertEq(bin, rv.getData());
+        }
 
-        b = msgpack_pack(convert_encoding("abcd", "UTF-16BE"), MSGPACK_QORE_MODE);
-        rv = msgpack_unpack(b);
-        assertEq(NT_OBJECT, rv.typeCode());
-        assertEq("MsgPackExtension", rv.className());
+        {
+            string str = convert_encoding("abcd", "UTF-16BE");
+            b = msgpack_pack(str, MSGPACK_QORE_MODE);
+            rv = msgpack_unpack(b);
+            assertEq(NT_OBJECT, rv.typeCode());
+            assertEq("MsgPackExtension", rv.className());
+            rv = msgpack_unpack(b, MSGPACK_QORE_MODE);
+            assertEq(str, rv);
+            assertEq("UTF-16BE", str.encoding());
+            assertEq("ISO-8859-1", msgpack_unpack(msgpack_pack(convert_encoding("hi", "iso88591"), MSGPACK_QORE_MODE), MSGPACK_QORE_MODE).encoding());
+        }
 
-        b = msgpack_pack(1.0n, MSGPACK_QORE_MODE);
-        rv = msgpack_unpack(b);
-        assertEq(NT_OBJECT, rv.typeCode());
-        assertEq("MsgPackExtension", rv.className());
+        {
+            number n = 1.0n;
+            b = msgpack_pack(n, MSGPACK_QORE_MODE);
+            rv = msgpack_unpack(b);
+            assertEq(NT_OBJECT, rv.typeCode());
+            assertEq("MsgPackExtension", rv.className());
+            assertEq(n, msgpack_unpack(b, MSGPACK_QORE_MODE));
+        }
 
-        b = msgpack_pack(P1H, MSGPACK_QORE_MODE);
-        rv = msgpack_unpack(b);
-        assertEq(NT_OBJECT, rv.typeCode());
-        assertEq("MsgPackExtension", rv.className());
+        {
+            date d = P1H;
+            b = msgpack_pack(d, MSGPACK_QORE_MODE);
+            rv = msgpack_unpack(b);
+            assertEq(NT_OBJECT, rv.typeCode());
+            assertEq("MsgPackExtension", rv.className());
+            assertEq(d, msgpack_unpack(b, MSGPACK_QORE_MODE));
+        }
 
         b = msgpack_pack(NULL, MSGPACK_QORE_MODE);
         rv = msgpack_unpack(b);
         assertEq(NT_OBJECT, rv.typeCode());
         assertEq("MsgPackExtension", rv.className());
+        assertEq(NULL, msgpack_unpack(b, MSGPACK_QORE_MODE));
     }
 }

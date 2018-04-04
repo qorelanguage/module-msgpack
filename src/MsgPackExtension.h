@@ -43,19 +43,19 @@ private:
     SimpleRefHolder<BinaryNode> data;
 
 public:
-    MsgPackExtension() {}
-    MsgPackExtension(int8_t exttype, BinaryNode* bin) :
+    DLLLOCAL MsgPackExtension() {}
+    DLLLOCAL MsgPackExtension(int8_t exttype, BinaryNode* bin) :
         extType(exttype),
         data(bin) {}
 
     //! Get extension type.
-    int8_t getType() const { return extType; }
+    DLLLOCAL int8_t getType() const { return extType; }
 
     //! Get extension's data.
-    BinaryNode* getReferencedData() { data->ref(); return *data; }
+    DLLLOCAL BinaryNode* getReferencedData() { data->ref(); return *data; }
 
     //! Get extension's data size.
-    size_t getSize() const { return data ? data->size() : 0; };
+    DLLLOCAL size_t getSize() const { return data ? data->size() : 0; };
 };
 
 } // namespace msgpack

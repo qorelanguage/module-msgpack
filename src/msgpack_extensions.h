@@ -83,7 +83,7 @@ namespace intern {
     |  1B |   4B   |   4B    |  4B   |   4B   |    4B    |   4B   |    4B    |
     @endverbatim
 */
-inline void msgpack_pack_ext_date(mpack_writer_t* writer, const DateTimeNode* date) {
+DLLLOCAL inline void msgpack_pack_ext_date(mpack_writer_t* writer, const DateTimeNode* date) {
     char bytes[sizeof(int64_t)];
 
     if (date->isAbsolute()) {
@@ -150,7 +150,7 @@ inline void msgpack_pack_ext_date(mpack_writer_t* writer, const DateTimeNode* da
     mpack_finish_ext(writer);
 }
 
-inline void msgpack_pack_ext_null(mpack_writer_t* writer) {
+DLLLOCAL inline void msgpack_pack_ext_null(mpack_writer_t* writer) {
     mpack_write_ext(writer, (int8_t) MSGPACK_EXT_QORE_NULL, nullptr, 0);
 }
 
@@ -190,7 +190,7 @@ inline void msgpack_pack_ext_null(mpack_writer_t* writer) {
     |          1B           |     4B      |      1+ B       |
     @endverbatim
 */
-inline void msgpack_pack_ext_number(mpack_writer_t* writer, const QoreNumberNode* number) {
+DLLLOCAL inline void msgpack_pack_ext_number(mpack_writer_t* writer, const QoreNumberNode* number) {
     if (number->nan()) {
         mpack_start_ext(writer, (int8_t) MSGPACK_EXT_QORE_NUMBER, 1);
         char numberType = (char) MSGPACK_NUMBER_NAN;
@@ -240,7 +240,7 @@ inline void msgpack_pack_ext_number(mpack_writer_t* writer, const QoreNumberNode
 
     I.e. 1 byte for encoding and the rest for string data.
 */
-inline void msgpack_pack_ext_string(mpack_writer_t* writer, const QoreString* str) {
+DLLLOCAL inline void msgpack_pack_ext_string(mpack_writer_t* writer, const QoreString* str) {
     uint32_t size = str->size() + 1;
     char enc = (char) getEncodingId(str->getEncoding());
 
@@ -255,7 +255,7 @@ inline void msgpack_pack_ext_string(mpack_writer_t* writer, const QoreString* st
 // Extension values reading functions
 //------------------------------------
 
-inline AbstractQoreNode* msgpack_unpack_ext_date(mpack_reader_t* reader, mpack_tag_t tag, ExceptionSink* xsink) {
+DLLLOCAL inline AbstractQoreNode* msgpack_unpack_ext_date(mpack_reader_t* reader, mpack_tag_t tag, ExceptionSink* xsink) {
     char bytes[sizeof(int64_t)];
     SimpleRefHolder<DateTimeNode> result;
 
@@ -304,12 +304,12 @@ inline AbstractQoreNode* msgpack_unpack_ext_date(mpack_reader_t* reader, mpack_t
     return result.release();
 }
 
-inline AbstractQoreNode* msgpack_unpack_ext_null(mpack_reader_t* reader, mpack_tag_t tag, ExceptionSink* xsink) {
+DLLLOCAL inline AbstractQoreNode* msgpack_unpack_ext_null(mpack_reader_t* reader, mpack_tag_t tag, ExceptionSink* xsink) {
     mpack_done_ext(reader);
     return null();
 }
 
-inline AbstractQoreNode* msgpack_unpack_ext_number(mpack_reader_t* reader, mpack_tag_t tag, ExceptionSink* xsink) {
+DLLLOCAL inline AbstractQoreNode* msgpack_unpack_ext_number(mpack_reader_t* reader, mpack_tag_t tag, ExceptionSink* xsink) {
     // read number type
     char numberType;
     mpack_read_bytes(reader, &numberType, 1);
@@ -360,7 +360,7 @@ inline AbstractQoreNode* msgpack_unpack_ext_number(mpack_reader_t* reader, mpack
     return result.release();
 }
 
-inline AbstractQoreNode* msgpack_unpack_ext_string(mpack_reader_t* reader, mpack_tag_t tag, ExceptionSink* xsink) {
+DLLLOCAL inline AbstractQoreNode* msgpack_unpack_ext_string(mpack_reader_t* reader, mpack_tag_t tag, ExceptionSink* xsink) {
     uint32_t size = tag.v.ext.length;
     if (size < 1) {
         mpack_reader_flag_error(reader, mpack_error_data);

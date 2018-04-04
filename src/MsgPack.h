@@ -48,16 +48,16 @@ private:
 
 public:
     //! Constructor.
-    MsgPack(msgpack::OperationMode m = msgpack::MSGPACK_SIMPLE_MODE) : mode(m) {}
+    DLLLOCAL MsgPack(msgpack::OperationMode m = msgpack::MSGPACK_SIMPLE_MODE) : mode(m) {}
 
     //! Get operation mode used for packing and unpacking.
-    msgpack::OperationMode getOperationMode() const { return mode; }
+    DLLLOCAL msgpack::OperationMode getOperationMode() const { return mode; }
 
     //! Set operation mode used for packing and unpacking.
-    void setOperationMode(msgpack::OperationMode m) { mode = m; }
+    DLLLOCAL void setOperationMode(msgpack::OperationMode m) { mode = m; }
 
     //! Pack passed value into MessagePack format binary.
-    QoreValue pack(ExceptionSink* xsink, QoreValue value) {
+    DLLLOCAL QoreValue pack(ExceptionSink* xsink, QoreValue value) {
         try {
             QoreValue result(msgpack::intern::msgpack_pack(value, mode, xsink));
             if (xsink && *xsink)
@@ -71,7 +71,7 @@ public:
     }
 
     //! Unpacked passed MessagePack data.
-    QoreValue unpack(ExceptionSink* xsink, QoreValue value) {
+    DLLLOCAL QoreValue unpack(ExceptionSink* xsink, QoreValue value) {
         try {
             QoreValue result(msgpack::intern::msgpack_unpack(
                 static_cast<BinaryNode*>(value.getInternalNode()),

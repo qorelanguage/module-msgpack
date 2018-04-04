@@ -52,27 +52,27 @@ namespace intern {
 // Raw value writing functions
 //-----------------------------
 
-inline void msgpack_pack_binary(mpack_writer_t* writer, const char* value, uint32_t size) {
+DLLLOCAL inline void msgpack_pack_binary(mpack_writer_t* writer, const char* value, uint32_t size) {
     mpack_write_bin(writer, value, size);
 }
 
-inline void msgpack_pack_bool(mpack_writer_t* writer, bool value) {
+DLLLOCAL inline void msgpack_pack_bool(mpack_writer_t* writer, bool value) {
     mpack_write_bool(writer, value);
 }
 
-inline void msgpack_pack_double(mpack_writer_t* writer, double value) {
+DLLLOCAL inline void msgpack_pack_double(mpack_writer_t* writer, double value) {
     mpack_write_double(writer, value);
 }
 
-inline void msgpack_pack_int(mpack_writer_t* writer, int64 value) {
+DLLLOCAL inline void msgpack_pack_int(mpack_writer_t* writer, int64 value) {
     mpack_write_i64(writer, value);
 }
 
-inline void msgpack_pack_nil(mpack_writer_t* writer) {
+DLLLOCAL inline void msgpack_pack_nil(mpack_writer_t* writer) {
     mpack_write_nil(writer);
 }
 
-inline void msgpack_pack_utf8(mpack_writer_t* writer, const char* value, uint32_t size) {
+DLLLOCAL inline void msgpack_pack_utf8(mpack_writer_t* writer, const char* value, uint32_t size) {
     mpack_write_utf8(writer, value, size);
 }
 
@@ -81,20 +81,19 @@ inline void msgpack_pack_utf8(mpack_writer_t* writer, const char* value, uint32_
 // Qore nodes/values writing functions
 //-------------------------------------
 
-// early declarations
-inline void msgpack_pack_qore_node(mpack_writer_t* writer, const AbstractQoreNode* value, OperationMode mode, ExceptionSink* xsink);
-inline void msgpack_pack_qore_string(mpack_writer_t* writer, const QoreString* value, OperationMode mode, ExceptionSink* xsink);
-inline void msgpack_pack_value(mpack_writer_t* writer, QoreValue value, OperationMode mode, ExceptionSink* xsink);
+// forward declarations
+DLLLOCAL inline void msgpack_pack_qore_string(mpack_writer_t* writer, const QoreString* value, OperationMode mode, ExceptionSink* xsink);
+DLLLOCAL inline void msgpack_pack_value(mpack_writer_t* writer, QoreValue value, OperationMode mode, ExceptionSink* xsink);
 
-inline void msgpack_pack_qore_binary(mpack_writer_t* writer, const BinaryNode* value) {
+DLLLOCAL inline void msgpack_pack_qore_binary(mpack_writer_t* writer, const BinaryNode* value) {
     msgpack_pack_binary(writer, static_cast<const char*>(value->getPtr()), value->size());
 }
 
-inline void msgpack_pack_qore_bool(mpack_writer_t* writer, QoreValue value) {
+DLLLOCAL inline void msgpack_pack_qore_bool(mpack_writer_t* writer, QoreValue value) {
     msgpack_pack_bool(writer, value.getAsBool());
 }
 
-inline void getDateStringRepr(const DateTimeNode* date, QoreString& str) {
+DLLLOCAL inline void getDateStringRepr(const DateTimeNode* date, QoreString& str) {
     if (date->isAbsolute()) {
         if (date->getMicrosecond())
             date->format(str, "YYYY-MM-DDTHH:mm:SS.xxZ");
@@ -106,7 +105,7 @@ inline void getDateStringRepr(const DateTimeNode* date, QoreString& str) {
     }
 }
 
-inline void msgpack_pack_qore_date(mpack_writer_t* writer, const DateTimeNode* value, OperationMode mode) {
+DLLLOCAL inline void msgpack_pack_qore_date(mpack_writer_t* writer, const DateTimeNode* value, OperationMode mode) {
     switch (mode) {
         case MSGPACK_SIMPLE_MODE: {
             QoreString str;
@@ -122,11 +121,11 @@ inline void msgpack_pack_qore_date(mpack_writer_t* writer, const DateTimeNode* v
     }
 }
 
-inline void msgpack_pack_qore_float(mpack_writer_t* writer, QoreValue value) {
+DLLLOCAL inline void msgpack_pack_qore_float(mpack_writer_t* writer, QoreValue value) {
     msgpack_pack_double(writer, value.getAsFloat());
 }
 
-inline void msgpack_pack_qore_hash(mpack_writer_t* writer, const QoreHashNode* value, OperationMode mode, ExceptionSink* xsink) {
+DLLLOCAL inline void msgpack_pack_qore_hash(mpack_writer_t* writer, const QoreHashNode* value, OperationMode mode, ExceptionSink* xsink) {
     qore_size_t size = value->size();
 
     // start map writing
@@ -147,11 +146,11 @@ inline void msgpack_pack_qore_hash(mpack_writer_t* writer, const QoreHashNode* v
     mpack_finish_map(writer);
 }
 
-inline void msgpack_pack_qore_int(mpack_writer_t* writer, QoreValue value) {
+DLLLOCAL inline void msgpack_pack_qore_int(mpack_writer_t* writer, QoreValue value) {
     msgpack_pack_int(writer, value.getAsBigInt());
 }
 
-inline void msgpack_pack_qore_list(mpack_writer_t* writer, QoreValue value, OperationMode mode, ExceptionSink* xsink) {
+DLLLOCAL inline void msgpack_pack_qore_list(mpack_writer_t* writer, QoreValue value, OperationMode mode, ExceptionSink* xsink) {
     QoreListNode* listNode = dynamic_cast<QoreListNode*>(value.getInternalNode());
     if (listNode) {
         size_t size = listNode->size();
@@ -161,7 +160,7 @@ inline void msgpack_pack_qore_list(mpack_writer_t* writer, QoreValue value, Oper
 
         // write array elements
         for (size_t i = 0; i < size; i++) {
-            msgpack_pack_qore_node(writer, listNode->retrieve_entry(i), mode, xsink);
+            msgpack_pack_value(writer, listNode->retrieve_entry(i), mode, xsink);
         }
     }
     else {
@@ -186,11 +185,11 @@ inline void msgpack_pack_qore_list(mpack_writer_t* writer, QoreValue value, Oper
     mpack_finish_array(writer);
 }
 
-inline void msgpack_pack_qore_nothing(mpack_writer_t* writer) {
+DLLLOCAL inline void msgpack_pack_qore_nothing(mpack_writer_t* writer) {
     msgpack_pack_nil(writer);
 }
 
-inline void msgpack_pack_qore_null(mpack_writer_t* writer, OperationMode mode) {
+DLLLOCAL inline void msgpack_pack_qore_null(mpack_writer_t* writer, OperationMode mode) {
     switch (mode) {
         case MSGPACK_SIMPLE_MODE:
             msgpack_pack_nil(writer); break;
@@ -201,7 +200,7 @@ inline void msgpack_pack_qore_null(mpack_writer_t* writer, OperationMode mode) {
     }
 }
 
-inline void msgpack_pack_qore_number(mpack_writer_t* writer, const QoreNumberNode* value, OperationMode mode) {
+DLLLOCAL inline void msgpack_pack_qore_number(mpack_writer_t* writer, const QoreNumberNode* value, OperationMode mode) {
     switch (mode) {
         case MSGPACK_SIMPLE_MODE: {
             //QoreStringValueHelper v(value);
@@ -217,7 +216,7 @@ inline void msgpack_pack_qore_number(mpack_writer_t* writer, const QoreNumberNod
     }
 }
 
-inline void msgpack_pack_qore_string(mpack_writer_t* writer, const QoreString* value, OperationMode mode, ExceptionSink* xsink) {
+DLLLOCAL inline void msgpack_pack_qore_string(mpack_writer_t* writer, const QoreString* value, OperationMode mode, ExceptionSink* xsink) {
     if (value->getEncoding() == QCS_UTF8) {
         msgpack_pack_utf8(writer, value->c_str(), value->size());
     }
@@ -240,52 +239,18 @@ inline void msgpack_pack_qore_string(mpack_writer_t* writer, const QoreString* v
     }
 }
 
-inline void msgpack_pack_qore_node(mpack_writer_t* writer, const AbstractQoreNode* value, OperationMode mode, ExceptionSink* xsink) {
-    if (!value) {
-        msgpack_pack_qore_nothing(writer);
-        return;
-    }
-
-    switch (value->getType()) {
-        case NT_BINARY:                     // BinaryNode
-            msgpack_pack_qore_binary(writer, static_cast<const BinaryNode*>(value)); break;
-        case NT_BOOLEAN:                    // QoreBoolNode
-            msgpack_pack_qore_bool(writer, QoreValue(static_cast<const QoreBoolNode*>(value)->getAsBool())); break;
-        case NT_DATE:                       // DateTimeNode
-            msgpack_pack_qore_date(writer, static_cast<const DateTimeNode*>(value), mode); break;
-        case NT_FLOAT:                      // QoreFloatNode
-            msgpack_pack_qore_float(writer, QoreValue(static_cast<const QoreFloatNode*>(value)->getAsFloat())); break;
-        case NT_HASH:                       // QoreHashNode
-            msgpack_pack_qore_hash(writer, static_cast<const QoreHashNode*>(value), mode, xsink); break;
-        case NT_INT:                        // QoreBigIntNode
-            msgpack_pack_qore_int(writer, QoreValue(static_cast<const QoreBigIntNode*>(value)->getAsBigInt())); break;
-        case NT_LIST:                       // QoreListNode
-            msgpack_pack_qore_list(writer, QoreValue(value), mode, xsink); break;
-        case NT_NOTHING:                    // QoreNothingNode
-            msgpack_pack_qore_nothing(writer); break;
-        case NT_NULL:                       // QoreNullNode
-            msgpack_pack_qore_null(writer, mode); break;
-        case NT_NUMBER:                     // QoreNumberNode
-            msgpack_pack_qore_number(writer, static_cast<const QoreNumberNode*>(value), mode); break;
-        case NT_STRING:                     // QoreStringNode
-            msgpack_pack_qore_string(writer, static_cast<const QoreStringNode*>(value), mode, xsink); break;
-        default:
-            break;
-    }
-}
-
-inline void msgpack_pack_value(mpack_writer_t* writer, QoreValue value, OperationMode mode, ExceptionSink* xsink) {
+DLLLOCAL inline void msgpack_pack_value(mpack_writer_t* writer, QoreValue value, OperationMode mode, ExceptionSink* xsink) {
     switch (value.getType()) {
         case NT_BINARY:                     // BinaryNode
-            msgpack_pack_qore_binary(writer, static_cast<const BinaryNode*>(value.getInternalNode())); break;
+            msgpack_pack_qore_binary(writer, value.get<const BinaryNode>()); break;
         case NT_BOOLEAN:                    // QoreBoolNode
             msgpack_pack_qore_bool(writer, value); break;
         case NT_DATE:                       // DateTimeNode
-            msgpack_pack_qore_date(writer, static_cast<const DateTimeNode*>(value.getInternalNode()), mode); break;
+            msgpack_pack_qore_date(writer, value.get<const DateTimeNode>(), mode); break;
         case NT_FLOAT:                      // QoreFloatNode
             msgpack_pack_qore_float(writer, value); break;
         case NT_HASH:                       // QoreHashNode
-            msgpack_pack_qore_hash(writer, static_cast<const QoreHashNode*>(value.getInternalNode()), mode, xsink); break;
+            msgpack_pack_qore_hash(writer, value.get<const QoreHashNode>(), mode, xsink); break;
         case NT_INT:                        // QoreBigIntNode
             msgpack_pack_qore_int(writer, value); break;
         case NT_LIST:                       // QoreListNode
@@ -295,9 +260,9 @@ inline void msgpack_pack_value(mpack_writer_t* writer, QoreValue value, Operatio
         case NT_NULL:                       // QoreNullNode
             msgpack_pack_qore_null(writer, mode); break;
         case NT_NUMBER:                     // QoreNumberNode
-            msgpack_pack_qore_number(writer, static_cast<const QoreNumberNode*>(value.getInternalNode()), mode); break;
+            msgpack_pack_qore_number(writer, value.get<const QoreNumberNode>(), mode); break;
         case NT_STRING:                     // QoreStringNode
-            msgpack_pack_qore_string(writer, static_cast<const QoreStringNode*>(value.getInternalNode()), mode, xsink); break;
+            msgpack_pack_qore_string(writer, value.get<const QoreStringNode>(), mode, xsink); break;
         default:
             break;
     }
@@ -308,7 +273,7 @@ inline void msgpack_pack_value(mpack_writer_t* writer, QoreValue value, Operatio
 // msgpack_pack function
 //-----------------------
 
-inline QoreValue msgpack_pack(QoreValue& data, OperationMode mode, ExceptionSink* xsink) {
+DLLLOCAL inline QoreValue msgpack_pack(QoreValue& data, OperationMode mode, ExceptionSink* xsink) {
     size_t size = 0;
     char* buffer = nullptr;
     mpack_writer_t writer;

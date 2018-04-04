@@ -64,7 +64,7 @@ enum EncodingId {
     QE_KOI7        = 22,
 };
 
-inline bool checkOperationMode(int64 mode) {
+DLLLOCAL inline bool checkOperationMode(int64 mode) {
     if (mode == (int64)msgpack::MSGPACK_SIMPLE_MODE)
         return false;
     if (mode == (int64)msgpack::MSGPACK_QORE_MODE)
@@ -72,12 +72,15 @@ inline bool checkOperationMode(int64 mode) {
     return true;
 }
 
-inline bool checkOperationMode(ExceptionSink* xsink, int64 mode) {
-    if (checkOperationMode(mode))
+DLLLOCAL inline bool checkOperationMode(ExceptionSink* xsink, int64 mode) {
+    if (checkOperationMode(mode)) {
         xsink->raiseException("INVALID-MODE", "passed operation mode is invalid");
+        return true;
+    }
+    return false;
 }
 
-inline EncodingId getEncodingId(const QoreEncoding* enc) {
+DLLLOCAL inline EncodingId getEncodingId(const QoreEncoding* enc) {
     // cannot use switch here because of pointer comparison
     if (enc == QCS_USASCII) { return QE_USASCII; }
     else if (enc == QCS_UTF8) { return QE_UTF8; }
@@ -106,7 +109,7 @@ inline EncodingId getEncodingId(const QoreEncoding* enc) {
     return QE_UTF8;
 }
 
-inline const QoreEncoding* getEncodingFromId(EncodingId encId) {
+DLLLOCAL inline const QoreEncoding* getEncodingFromId(EncodingId encId) {
     switch(encId) {
         case QE_USASCII: return QCS_USASCII;
         case QE_UTF8: return QCS_UTF8;

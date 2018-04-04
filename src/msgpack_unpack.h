@@ -47,9 +47,9 @@
 namespace msgpack {
 namespace intern {
 
-inline AbstractQoreNode* msgpack_unpack_value(mpack_reader_t* reader, OperationMode mode, ExceptionSink* xsink);
+DLLLOCAL inline AbstractQoreNode* msgpack_unpack_value(mpack_reader_t* reader, OperationMode mode, ExceptionSink* xsink);
 
-inline BinaryNode* msgpack_unpack_binary(mpack_reader_t* reader, mpack_tag_t tag, ExceptionSink* xsink) {
+DLLLOCAL inline BinaryNode* msgpack_unpack_binary(mpack_reader_t* reader, mpack_tag_t tag, ExceptionSink* xsink) {
     uint32_t size = tag.v.l;
 
     // prepare binary node
@@ -63,7 +63,7 @@ inline BinaryNode* msgpack_unpack_binary(mpack_reader_t* reader, mpack_tag_t tag
     return bin.release();
 }
 
-inline QoreStringNode* msgpack_unpack_string(mpack_reader_t* reader, mpack_tag_t tag, ExceptionSink* xsink) {
+DLLLOCAL inline QoreStringNode* msgpack_unpack_string(mpack_reader_t* reader, mpack_tag_t tag, ExceptionSink* xsink) {
     uint32_t size = tag.v.l;
 
     // prepare string node and buffer for reading
@@ -81,7 +81,7 @@ inline QoreStringNode* msgpack_unpack_string(mpack_reader_t* reader, mpack_tag_t
     return str.release();
 }
 
-inline AbstractQoreNode* msgpack_unpack_array(mpack_reader_t* reader, mpack_tag_t tag, OperationMode mode, ExceptionSink* xsink) {
+DLLLOCAL inline AbstractQoreNode* msgpack_unpack_array(mpack_reader_t* reader, mpack_tag_t tag, OperationMode mode, ExceptionSink* xsink) {
     // prepare list
     ReferenceHolder<QoreListNode> list(new QoreListNode, xsink);
 
@@ -95,7 +95,7 @@ inline AbstractQoreNode* msgpack_unpack_array(mpack_reader_t* reader, mpack_tag_
     return list.release();
 }
 
-inline AbstractQoreNode* msgpack_unpack_map(mpack_reader_t* reader, mpack_tag_t tag, OperationMode mode, ExceptionSink* xsink) {
+DLLLOCAL inline AbstractQoreNode* msgpack_unpack_map(mpack_reader_t* reader, mpack_tag_t tag, OperationMode mode, ExceptionSink* xsink) {
     // prepare hash
     ReferenceHolder<QoreHashNode> hash(new QoreHashNode, xsink);
 
@@ -120,7 +120,7 @@ inline AbstractQoreNode* msgpack_unpack_map(mpack_reader_t* reader, mpack_tag_t 
     return hash.release();
 }
 
-inline AbstractQoreNode* msgpack_unpack_ext(mpack_reader_t* reader, mpack_tag_t tag, OperationMode mode, ExceptionSink* xsink) {
+DLLLOCAL inline AbstractQoreNode* msgpack_unpack_ext(mpack_reader_t* reader, mpack_tag_t tag, OperationMode mode, ExceptionSink* xsink) {
     switch (mode) {
         case MSGPACK_SIMPLE_MODE: {
             uint32_t size = tag.v.ext.length;
@@ -154,7 +154,7 @@ inline AbstractQoreNode* msgpack_unpack_ext(mpack_reader_t* reader, mpack_tag_t 
     return nullptr;
 }
 
-inline AbstractQoreNode* msgpack_unpack_value(mpack_reader_t* reader, OperationMode mode, ExceptionSink* xsink) {
+DLLLOCAL inline AbstractQoreNode* msgpack_unpack_value(mpack_reader_t* reader, OperationMode mode, ExceptionSink* xsink) {
     mpack_tag_t tag = mpack_read_tag(reader);
 
     switch (tag.type) {
@@ -194,7 +194,7 @@ inline AbstractQoreNode* msgpack_unpack_value(mpack_reader_t* reader, OperationM
 // msgpack_unpack function
 //-------------------------
 
-inline QoreValue msgpack_unpack(const BinaryNode* data, OperationMode mode, ExceptionSink* xsink) {
+DLLLOCAL inline QoreValue msgpack_unpack(const BinaryNode* data, OperationMode mode, ExceptionSink* xsink) {
     ReferenceHolder<AbstractQoreNode> unpacked(xsink);
     const char* dataCheck = nullptr;
     const char* buffer = static_cast<const char*>(data->getPtr());

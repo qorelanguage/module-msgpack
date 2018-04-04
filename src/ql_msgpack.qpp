@@ -210,7 +210,7 @@ hash example = {"compact": True, "schema": 0};
             static_cast<msgpack::OperationMode>(mode),
             xsink
         ));
-        if (xsink && *xsink)
+        if (*xsink)
             return QoreValue();
         return result;
     }
