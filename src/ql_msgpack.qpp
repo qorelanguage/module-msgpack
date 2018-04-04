@@ -210,6 +210,7 @@ hash example = {"compact": True, "schema": 0};
             static_cast<msgpack::OperationMode>(mode),
             xsink
         ));
+        // xsink must be non-null in qpp functions
         if (*xsink)
             return QoreValue();
         return result;
