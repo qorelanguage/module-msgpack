@@ -17,7 +17,8 @@ class MsgPackTest inherits QUnit::Test {
         addTestCase("Basic Qore mode test", \basicQoreModeTest());
         addTestCase("MsgPack class simple mode test", \MsgPackSimpleModeTest());
         addTestCase("MsgPack class Qore mode test", \MsgPackQoreModeTest());
-        addTestCase("Pack/Unpack test", \packUnpackTest());
+        addTestCase("Pack test", \packTest());
+        addTestCase("Unpack test", \unpackTest());
         set_return_value(main());
     }
 
@@ -630,7 +631,18 @@ class MsgPackTest inherits QUnit::Test {
         assertEq({"a": 1, "b": (1, 2, 3)}, mp.unpack(b));
     }
 
-    packUnpackTest() {
+    packTest() {
+        *MsgPackExtension ext;
+
+        ext = new MsgPackExtension(3, <fe>);
+        assertEq(<d403fe>, msgpack_pack(ext));
+        ext = new MsgPackExtension(3, <feed>);
+        assertEq(<d503feed>, msgpack_pack(ext));
+        ext = new MsgPackExtension(3, <feedface>);
+        assertEq(<d603feedface>, msgpack_pack(ext));
+    }
+
+    unpackTest() {
         binary b;
         auto rv;
 

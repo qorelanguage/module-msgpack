@@ -28,6 +28,7 @@
 #ifndef _QORE_MODULE_MSGPACK_MSGPACKEXCEPTION_H
 #define _QORE_MODULE_MSGPACK_MSGPACKEXCEPTION_H
 
+// qore
 #include "qore/Qore.h"
 
 // mpack library
@@ -36,14 +37,14 @@
 namespace msgpack {
 
 // error messages for mpack errors
-extern const char* MpackErrorIO;
-extern const char* MpackErrorInvalid;
-extern const char* MpackErrorType;
-extern const char* MpackErrorTooBig;
-extern const char* MpackErrorMemory;
-extern const char* MpackErrorBug;
-extern const char* MpackErrorData;
-extern const char* MpackErrorUnknownIntern;
+DLLLOCAL extern const char* MpackErrorIO;
+DLLLOCAL extern const char* MpackErrorInvalid;
+DLLLOCAL extern const char* MpackErrorType;
+DLLLOCAL extern const char* MpackErrorTooBig;
+DLLLOCAL extern const char* MpackErrorMemory;
+DLLLOCAL extern const char* MpackErrorBug;
+DLLLOCAL extern const char* MpackErrorData;
+DLLLOCAL extern const char* MpackErrorUnknownIntern;
 
 //! MessagePack module exception class.
 class MsgPackException {
