@@ -45,6 +45,11 @@ namespace intern {
 //-----------------------------
 
 DLLLOCAL inline void msgpack_pack_binary(mpack_writer_t* writer, const char* value, uint32_t size) {
+    // do not pass nullptr to mpack_write_bin() or it will assert
+    if (!value) {
+        assert(!size);
+        value = "";
+    }
     mpack_write_bin(writer, value, size);
 }
 
@@ -65,6 +70,11 @@ DLLLOCAL inline void msgpack_pack_nil(mpack_writer_t* writer) {
 }
 
 DLLLOCAL inline void msgpack_pack_utf8(mpack_writer_t* writer, const char* value, uint32_t size) {
+    // do not pass nullptr to mpack_write_utf8() or it will assert
+    if (!value) {
+        assert(!size);
+        value = "";
+    }
     mpack_write_utf8(writer, value, size);
 }
 

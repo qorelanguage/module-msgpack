@@ -118,7 +118,8 @@ void msgpack_pack_ext_ext(mpack_writer_t* writer, const MsgPackExtension* ext) {
 }
 
 void msgpack_pack_ext_null(mpack_writer_t* writer) {
-    mpack_write_ext(writer, (int8_t) MSGPACK_EXT_QORE_NULL, nullptr, 0);
+    // do not pass nullptr to mpack_write_ext() or it will assert
+    mpack_write_ext(writer, (int8_t) MSGPACK_EXT_QORE_NULL, "", 0);
 }
 
 void msgpack_pack_ext_number(mpack_writer_t* writer, const QoreNumberNode* number) {
