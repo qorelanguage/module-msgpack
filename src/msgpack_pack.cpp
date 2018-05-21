@@ -110,34 +110,15 @@ void msgpack_pack_qore_int(mpack_writer_t* writer, QoreValue value) {
 }
 
 void msgpack_pack_qore_list(mpack_writer_t* writer, QoreValue value, OperationMode mode, ExceptionSink* xsink) {
-    QoreListNode* listNode = dynamic_cast<QoreListNode*>(value.getInternalNode());
-    if (listNode) {
-        size_t size = listNode->size();
+    QoreListNode* listNode = value.get<QoreListNode>();
+    size_t size = listNode->size();
 
-        // start array writing
-        mpack_start_array(writer, static_cast<uint32_t>(size));
+    // start array writing
+    mpack_start_array(writer, static_cast<uint32_t>(size));
 
-        // write array elements
-        for (size_t i = 0; i < size; i++) {
-            msgpack_pack_qore_node(writer, listNode->retrieve_entry(i), mode, xsink);
-        }
-    }
-    else {
-        QoreValueList* list = dynamic_cast<QoreValueList*>(value.getInternalNode());
-        if (list) {
-            size_t size = list->size();
-
-            // start array writing
-            mpack_start_array(writer, static_cast<uint32_t>(size));
-
-            // write array elements
-            for (size_t i = 0; i < size; i++) {
-                msgpack_pack_qore_value(writer, list->retrieveEntry(i), mode, xsink);
-            }
-        }
-        else {
-            mpack_writer_flag_error(writer, mpack_error_data);
-        }
+    // write array elements
+    for (size_t i = 0; i < size; i++) {
+        msgpack_pack_qore_value(writer, listNode->retrieveEntry(i), mode, xsink);
     }
 
     // finish array writing
