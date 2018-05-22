@@ -24,7 +24,7 @@ endif ()
 
 add_definitions(-DUNICODE)
 
-FIND_PACKAGE (Qore 0.8.13 REQUIRED)
+FIND_PACKAGE (Qore 0.9 REQUIRED)
 
 # Check for C++11.
 include(CheckCXXCompilerFlag)
