@@ -95,7 +95,6 @@ DLLLOCAL void msgpack_pack_qore_null(mpack_writer_t* writer, OperationMode mode)
 DLLLOCAL void msgpack_pack_qore_number(mpack_writer_t* writer, const QoreNumberNode* value, OperationMode mode);
 DLLLOCAL void msgpack_pack_qore_string(mpack_writer_t* writer, const QoreString* value, OperationMode mode, ExceptionSink* xsink);
 
-DLLLOCAL void msgpack_pack_qore_node(mpack_writer_t* writer, const AbstractQoreNode* value, OperationMode mode, ExceptionSink* xsink);
 DLLLOCAL void msgpack_pack_qore_value(mpack_writer_t* writer, QoreValue value, OperationMode mode, ExceptionSink* xsink);
 
 
