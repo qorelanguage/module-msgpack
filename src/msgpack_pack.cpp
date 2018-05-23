@@ -180,15 +180,15 @@ void msgpack_pack_qore_string(mpack_writer_t* writer, const QoreString* value, O
 void msgpack_pack_qore_value(mpack_writer_t* writer, QoreValue value, OperationMode mode, ExceptionSink* xsink) {
     switch (value.getType()) {
         case NT_BINARY:                     // BinaryNode
-            msgpack_pack_qore_binary(writer, static_cast<const BinaryNode*>(value.getInternalNode())); break;
+            msgpack_pack_qore_binary(writer, value.get<const BinaryNode>()); break;
         case NT_BOOLEAN:                    // bool
             msgpack_pack_qore_bool(writer, value); break;
         case NT_DATE:                       // DateTimeNode
-            msgpack_pack_qore_date(writer, static_cast<const DateTimeNode*>(value.getInternalNode()), mode); break;
+            msgpack_pack_qore_date(writer, value.get<const DateTimeNode>(), mode); break;
         case NT_FLOAT:                      // double
             msgpack_pack_qore_float(writer, value); break;
         case NT_HASH:                       // QoreHashNode
-            msgpack_pack_qore_hash(writer, static_cast<const QoreHashNode*>(value.getInternalNode()), mode, xsink); break;
+            msgpack_pack_qore_hash(writer, value.get<const QoreHashNode>(), mode, xsink); break;
         case NT_INT:                        // int64 (long long)
             msgpack_pack_qore_int(writer, value); break;
         case NT_LIST:                       // QoreListNode
@@ -198,9 +198,9 @@ void msgpack_pack_qore_value(mpack_writer_t* writer, QoreValue value, OperationM
         case NT_NULL:                       // QoreNullNode
             msgpack_pack_qore_null(writer, mode); break;
         case NT_NUMBER:                     // QoreNumberNode
-            msgpack_pack_qore_number(writer, static_cast<const QoreNumberNode*>(value.getInternalNode()), mode); break;
+            msgpack_pack_qore_number(writer, value.get<const QoreNumberNode>(), mode); break;
         case NT_OBJECT: {
-            const QoreObject* obj = static_cast<QoreObject*>(value.getInternalNode());
+            const QoreObject* obj = value.get<QoreObject>();
             if (obj->getClass(CID_MSGPACKEXTENSION)) {
                 PrivateDataRefHolder<MsgPackExtension> holder(obj, CID_MSGPACKEXTENSION, xsink);
                 MsgPackExtension* ext = *holder;
@@ -211,7 +211,7 @@ void msgpack_pack_qore_value(mpack_writer_t* writer, QoreValue value, OperationM
             throw msgpack::MsgPackException("serializing objects is not supported");
         }
         case NT_STRING:                     // QoreStringNode
-            msgpack_pack_qore_string(writer, static_cast<const QoreStringNode*>(value.getInternalNode()), mode, xsink); break;
+            msgpack_pack_qore_string(writer, value.get<const QoreStringNode>(), mode, xsink); break;
         default:
             break;
     }
