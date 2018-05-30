@@ -1,28 +1,28 @@
 /* -*- mode: c++; indent-tabs-mode: nil -*- */
 /*
-  msgpack_unpack.cpp
+    msgpack_unpack.cpp
 
-  Qore MessagePack module
+    Qore MessagePack module
 
-  Copyright (C) 2018 Qore Technologies, s.r.o.
+    Copyright (C) 2018 Qore Technologies, s.r.o.
 
-  Permission is hereby granted, free of charge, to any person obtaining a
-  copy of this software and associated documentation files (the "Software"),
-  to deal in the Software without restriction, including without limitation
-  the rights to use, copy, modify, merge, publish, distribute, sublicense,
-  and/or sell copies of the Software, and to permit persons to whom the
-  Software is furnished to do so, subject to the following conditions:
+    Permission is hereby granted, free of charge, to any person obtaining a
+    copy of this software and associated documentation files (the "Software"),
+    to deal in the Software without restriction, including without limitation
+    the rights to use, copy, modify, merge, publish, distribute, sublicense,
+    and/or sell copies of the Software, and to permit persons to whom the
+    Software is furnished to do so, subject to the following conditions:
 
-  The above copyright notice and this permission notice shall be included in
-  all copies or substantial portions of the Software.
+    The above copyright notice and this permission notice shall be included in
+    all copies or substantial portions of the Software.
 
-  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-  FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-  DEALINGS IN THE SOFTWARE.
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+    FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+    DEALINGS IN THE SOFTWARE.
 */
 
 #include "msgpack_unpack.h"
@@ -40,7 +40,7 @@
 namespace msgpack {
 namespace intern {
 
-AbstractQoreNode* msgpack_unpack_array(mpack_reader_t* reader, mpack_tag_t tag, OperationMode mode, ExceptionSink* xsink) {
+QoreListNode* msgpack_unpack_array(mpack_reader_t* reader, mpack_tag_t tag, OperationMode mode, ExceptionSink* xsink) {
     // prepare list
     ReferenceHolder<QoreListNode> list(new QoreListNode, xsink);
 
@@ -102,7 +102,7 @@ AbstractQoreNode* msgpack_unpack_ext(mpack_reader_t* reader, mpack_tag_t tag, Op
     return nullptr;
 }
 
-AbstractQoreNode* msgpack_unpack_map(mpack_reader_t* reader, mpack_tag_t tag, OperationMode mode, ExceptionSink* xsink) {
+QoreHashNode* msgpack_unpack_map(mpack_reader_t* reader, mpack_tag_t tag, OperationMode mode, ExceptionSink* xsink) {
     // prepare hash
     ReferenceHolder<QoreHashNode> hash(new QoreHashNode, xsink);
 
@@ -110,8 +110,8 @@ AbstractQoreNode* msgpack_unpack_map(mpack_reader_t* reader, mpack_tag_t tag, Op
     uint32_t size = tag.v.n;
     for (uint32_t i = 0; i < size; i++) {
         // read key and value
-        ReferenceHolder<AbstractQoreNode> key(msgpack_unpack_value(reader, mode, xsink), xsink);
-        ReferenceHolder<AbstractQoreNode> value(msgpack_unpack_value(reader, mode, xsink), xsink);
+        ValueHolder key(msgpack_unpack_value(reader, mode, xsink), xsink);
+        ValueHolder value(msgpack_unpack_value(reader, mode, xsink), xsink);
 
         // check key and value
         if (!(*key || *value) || key->getType() != NT_STRING) {
@@ -120,7 +120,7 @@ AbstractQoreNode* msgpack_unpack_map(mpack_reader_t* reader, mpack_tag_t tag, Op
         }
 
         // add element to hash
-        hash->setKeyValue(static_cast<QoreStringNode*>(*key), value.release(), xsink);
+        hash->setKeyValue(key->get<QoreStringNode>()->c_str(), value.release(), xsink);
     }
 
     mpack_done_map(reader);
@@ -146,7 +146,7 @@ QoreStringNode* msgpack_unpack_string(mpack_reader_t* reader, mpack_tag_t tag, E
 }
 
 
-AbstractQoreNode* msgpack_unpack_value(mpack_reader_t* reader, OperationMode mode, ExceptionSink* xsink) {
+QoreValue msgpack_unpack_value(mpack_reader_t* reader, OperationMode mode, ExceptionSink* xsink) {
     mpack_tag_t tag = mpack_read_tag(reader);
 
     switch (tag.type) {
@@ -155,30 +155,30 @@ AbstractQoreNode* msgpack_unpack_value(mpack_reader_t* reader, OperationMode mod
         case mpack_type_bin:
             return msgpack_unpack_binary(reader, tag, xsink);
         case mpack_type_bool:
-            return get_bool_node(tag.v.b);
+            return tag.v.b;
         case mpack_type_double:
-            return new QoreFloatNode(tag.v.d);
+            return tag.v.d;
         case mpack_type_ext:
             return msgpack_unpack_ext(reader, tag, mode, xsink);
         case mpack_type_float:
-            return new QoreFloatNode(tag.v.f);
+            return tag.v.f;
         case mpack_type_int:
-            return new QoreBigIntNode(tag.v.i);
+            return tag.v.i;
         case mpack_type_map:
             return msgpack_unpack_map(reader, tag, mode, xsink);
         case mpack_type_nil:
-            return nothing();
+            return QoreValue();
         case mpack_type_str:
             return msgpack_unpack_string(reader, tag, xsink);
         case mpack_type_uint:
             if (tag.v.u <= LLONG_MAX)
-                return new QoreBigIntNode(static_cast<int64>(tag.v.u));
+                return static_cast<int64>(tag.v.u);
             return new QoreNumberNode(static_cast<double>(tag.v.u));
         default:
             mpack_reader_flag_error(reader, mpack_error_data);
             break;
     }
-    return nullptr;
+    return QoreValue();
 }
 
 
@@ -187,7 +187,7 @@ AbstractQoreNode* msgpack_unpack_value(mpack_reader_t* reader, OperationMode mod
 //-------------------------
 
 QoreValue msgpack_unpack(const BinaryNode* data, OperationMode mode, ExceptionSink* xsink) {
-    ReferenceHolder<AbstractQoreNode> unpacked(xsink);
+    ValueHolder unpacked(xsink);
     const char* dataCheck = nullptr;
     const char* buffer = static_cast<const char*>(data->getPtr());
     size_t remaining = 0;
@@ -199,13 +199,13 @@ QoreValue msgpack_unpack(const BinaryNode* data, OperationMode mode, ExceptionSi
 
     // unpack the data
     do {
-        AbstractQoreNode* node = msgpack_unpack_value(&reader, mode, xsink);
+        QoreValue node = msgpack_unpack_value(&reader, mode, xsink);
         if (*unpacked) {
             ReferenceHolder<QoreListNode> list(xsink);
             if (unpacked->getType() == NT_LIST)
-                list = static_cast<QoreListNode*>(unpacked.release());
+                list = unpacked.release().get<QoreListNode>();
             else
-                list = new QoreListNode;
+                list = new QoreListNode(autoTypeInfo);
             list->push(node, xsink);
             unpacked = list.release();
         }
@@ -223,19 +223,7 @@ QoreValue msgpack_unpack(const BinaryNode* data, OperationMode mode, ExceptionSi
     }
 
     // return unpacked Qore node
-    if (*unpacked) {
-        switch (unpacked->getType()) {
-            case NT_BOOLEAN:
-                return QoreValue(unpacked->getAsBool());
-            case NT_FLOAT:
-                return QoreValue(unpacked->getAsFloat());
-            case NT_INT:
-                return QoreValue(unpacked->getAsBigInt());
-            default:
-                break;
-        }
-    }
-    return QoreValue(unpacked.release());
+    return unpacked.release();
 }
 
 } // namespace intern
