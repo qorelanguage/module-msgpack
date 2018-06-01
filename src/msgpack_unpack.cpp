@@ -194,8 +194,12 @@ QoreValue msgpack_unpack(const BinaryNode* data, OperationMode mode, ExceptionSi
     size_t size = data->size();
     mpack_reader_t reader;
 
+    // return nothing if no data
+    if (buffer == nullptr || size == 0)
+        return QoreValue();
+
     // initialize reader
-    mpack_reader_init_data(&reader, static_cast<const char*>(data->getPtr()), data->size());
+    mpack_reader_init_data(&reader, buffer, size);
 
     // unpack the data
     do {
