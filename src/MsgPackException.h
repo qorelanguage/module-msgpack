@@ -34,6 +34,8 @@
 // mpack library
 #include "mpack.h"
 
+#include <stdarg.h>
+
 namespace msgpack {
 
 // error messages for mpack errors
@@ -52,6 +54,24 @@ public:
     DLLLOCAL MsgPackException(const char* nerr = MpackErrorUnknownIntern) : err(nerr) {}
 
     const char* err;
+};
+
+class MsgPackExceptionMaker : public MsgPackException {
+public:
+    DLLLOCAL MsgPackExceptionMaker(const char* fmt, ...) : MsgPackException(nullptr) {
+        va_list args;
+        while (true) {
+            va_start(args, fmt);
+            int rc = buf.vsprintf(fmt, args);
+            va_end(args);
+            if (!rc)
+                break;
+        }
+        err = buf.c_str();
+    }
+
+private:
+    QoreString buf;
 };
 
 DLLLOCAL MsgPackException getMsgPackException(mpack_error_t error);
