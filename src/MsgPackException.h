@@ -28,13 +28,14 @@
 #ifndef _QORE_MODULE_MSGPACK_MSGPACKEXCEPTION_H
 #define _QORE_MODULE_MSGPACK_MSGPACKEXCEPTION_H
 
+// std
+#include <cstdarg>
+
 // qore
 #include "qore/Qore.h"
 
 // mpack library
 #include "mpack.h"
-
-#include <stdarg.h>
 
 namespace msgpack {
 
