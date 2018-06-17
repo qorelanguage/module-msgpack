@@ -186,6 +186,14 @@ class MsgPackTest inherits QUnit::Test {
         assertEq({"a": 1, "b": {"c": True}}, msgpack_unpack(b));
         b = msgpack_pack({"a": 1, "b": (1, 2, 3)});
         assertEq({"a": 1, "b": (1, 2, 3)}, msgpack_unpack(b));
+
+        # unsupported types
+        assertThrows("PACK-ERROR", "closure", \msgpack_pack(), sub () {});
+        assertThrows("PACK-ERROR", "call ref", \msgpack_pack(), \printf());
+        assertThrows("PACK-ERROR", "call ref", \msgpack_pack(), {"a": 1, "x": \printf()});
+        assertThrows("PACK-ERROR", "call ref", \msgpack_pack(), ((0, \printf()),));
+        assertThrows("PACK-ERROR", "object", \msgpack_pack(), new Mutex());
+        assertThrows("PACK-ERROR", "reference", \msgpack_pack(), \b);
     }
 
     basicQoreModeTest() {
