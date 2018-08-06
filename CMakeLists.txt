@@ -35,6 +35,9 @@ else()
     message(FATAL_ERROR "The compiler ${CMAKE_CXX_COMPILER} has no C++11 support. Please use a different C++ compiler.")
 endif()
 
+# Set C99 mode for C (otherwise could not be compiled for example in Centos 7).
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99")
+
 set(QPP_SRC
     src/ql_msgpack.qpp
     src/QC_MsgPack.qpp
