@@ -32,7 +32,7 @@
 #include "qore/Qore.h"
 
 // mpack library
-#include "mpack.h"
+#include "mpack/mpack.h"
 
 // module sources
 #include "MsgPackExtension.h"
