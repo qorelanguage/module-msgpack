@@ -208,12 +208,13 @@ void msgpack_pack_qore_value(mpack_writer_t* writer, QoreValue value, OperationM
                     msgpack_pack_ext_ext(writer, ext);
                 break;
             }
-            throw msgpack::MsgPackException("serializing objects is not supported");
+            throw msgpack::MsgPackExceptionMaker("serializing objects is not supported (class: '%s')", obj->getClassName());
         }
         case NT_STRING:                     // QoreStringNode
             msgpack_pack_qore_string(writer, value.get<const QoreStringNode>(), mode, xsink); break;
-        default:
-            break;
+        default: {
+            throw msgpack::MsgPackExceptionMaker("serializing values of type '%s' is not supported", value.getTypeName());
+        }
     }
 }
 
