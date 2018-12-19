@@ -49,7 +49,7 @@ auto unpacked = mp.unpack(packed);
     @section msgpack_operation_modes Operation modes
 
     The msgpack module supports the following operation modes:
-    - <b>simple mode</b>: used for maximum inter-operability with other software using MessagePack for (de)serialization of data; may lose some precision/information for certain datatypes; this is the default
+    - <b>simple mode</b>: used for good inter-operability with other software using MessagePack for (de)serialization of data; may lose some precision/information for certain datatypes; this is the default
     - <b>qore mode</b>: aims for maximum compatibility with other Qore applications; does not lose any information
 
     With the functions @ref msgpack::msgpack_pack "msgpack_pack()" and @ref msgpack::msgpack_unpack "msgpack_unpack()", operation mode can be passed as their second argument (after the value to be (un)packed), as in the following example:
@@ -72,7 +72,7 @@ mp.setOperationMode(MSGPACK_SIMPLE_MODE);
 
     @subsection msgpack_simple_mode Simple Mode
 
-    Simple mode is used for maximum compatibility with other software using MessagePack for (de)serialization of data. For this reason, no MessagePack extensions are used. And because not all Qore datatypes have their MessagePack counterpart, some values are modified or automatically converted into different types to maintain compatibility. This happens to values of the @ref date, @ref null and @ref number datatypes, and to some values of the @ref string datatype.
+    Simple mode is used for good compatibility with other software using MessagePack for (de)serialization of data. And because not all Qore datatypes have their MessagePack counterpart, some values are modified or automatically converted into different types to maintain compatibility. This happens to values of the @ref date, @ref null and @ref number datatypes, and to some values of the @ref string datatype.
 
     Simple mode is the default mode of operation for the packing/unpacking functions and for the @ref msgpack::MsgPack "MsgPack" objects.
 
@@ -80,8 +80,8 @@ mp.setOperationMode(MSGPACK_SIMPLE_MODE);
     |!Qore Type|!MessagePack Type|!Notes
     |\c binary|<tt>Raw Binary</tt>|
     |\c bool|\c Boolean|
-    |\c date (absolute)|\c <tt>Raw String</tt>|date is converted into ISO-8601 format string (YYYY-MM-DDTHH:mm:SS.xxZ)
-    |\c date (relative)|\c <tt>Raw String</tt>|date is converted into ISO-8601 duration format string (PnYnMnDTnHnMnS)
+    |\c date (absolute)|<tt>Timestamp (extension)</tt>|date is converted into MessagePack Timestamp format
+    |\c date (relative)|<tt>Raw String</tt>|date is converted into ISO-8601 duration format string (PnYnMnDTnHnMnS)
     |\c float|\c Float (64bit)|
     |\c hash|\c Map|loses complex type information
     |\c int|\c Integer|
@@ -105,10 +105,11 @@ mp.setOperationMode(MSGPACK_SIMPLE_MODE);
     |\c Nil|\c nothing|
     |<tt>Raw Binary</tt>|\c binary|
     |<tt>Raw String</tt>|\c string|assumed to be in UTF-8 encoding
+    |<tt>Timestamp (extension)</tt>|\c date|
 
     @subsection msgpack_qore_mode Qore Mode
 
-    Qore mode aims for maximum compatibility with other Qore applications using this module. Basic MessagePack types are used wherever possible and MessagePack extensions are used for Qore datatypes which don't have any MessagePack counterpart. This happens to values of the @ref date, @ref null and @ref number datatypes, and to some values of the @ref string datatype.
+    Qore mode aims for maximum compatibility with other Qore applications using this module and maintaining precision of data. Basic MessagePack types are used wherever possible and MessagePack extensions are used for Qore datatypes which don't have any MessagePack counterpart. This happens to values of the @ref date, @ref null and @ref number datatypes, and to some values of the @ref string datatype.
 
     The following table shows how Qore values are mapped to MessagePack values during Qore mode serialization:
     |!Qore Type|!MessagePack Type|!Notes
@@ -144,6 +145,7 @@ mp.setOperationMode(MSGPACK_SIMPLE_MODE);
     |\c Nil|\c nothing|
     |<tt>Raw Binary</tt>|\c binary|
     |<tt>Raw String</tt>|\c string|assumed to be in UTF-8 encoding
+    |<tt>Timestamp (extension)</tt>|\c date|
 
     @section msgpack_extensions MessagePack Extensions
 

@@ -45,7 +45,7 @@ QoreListNode* msgpack_unpack_array(mpack_reader_t* reader, mpack_tag_t tag, Oper
     ReferenceHolder<QoreListNode> list(new QoreListNode, xsink);
 
     // read all elements
-    uint32_t size = tag.v.n;
+    uint32_t size = mpack_tag_array_count(&tag);
     for (uint32_t i = 0; i < size; i++) {
         list->push(msgpack_unpack_value(reader, mode, xsink), xsink);
     }
@@ -55,7 +55,7 @@ QoreListNode* msgpack_unpack_array(mpack_reader_t* reader, mpack_tag_t tag, Oper
 }
 
 BinaryNode* msgpack_unpack_binary(mpack_reader_t* reader, mpack_tag_t tag, ExceptionSink* xsink) {
-    uint32_t size = tag.v.l;
+    uint32_t size = mpack_tag_bin_length(&tag);
 
     // prepare binary node
     SimpleRefHolder<BinaryNode> bin(new BinaryNode);
@@ -71,16 +71,25 @@ BinaryNode* msgpack_unpack_binary(mpack_reader_t* reader, mpack_tag_t tag, Excep
 AbstractQoreNode* msgpack_unpack_ext(mpack_reader_t* reader, mpack_tag_t tag, OperationMode mode, ExceptionSink* xsink) {
     switch (mode) {
         case MSGPACK_SIMPLE_MODE: {
-            uint32_t size = tag.v.ext.length;
+            // handle MessagePack built-in extension types first
+            if (mpack_tag_ext_exttype(&tag) == MPACK_EXTTYPE_TIMESTAMP)
+                return msgpack_unpack_ext_timestamp(reader, tag, xsink);
+
+            // otherwise unpack as an extension object
+            uint32_t size = mpack_tag_ext_length(&tag);
             SimpleRefHolder<BinaryNode> bin(new BinaryNode);
             bin->preallocate(size);
             mpack_read_bytes(reader, (char*) bin->getPtr(), size);
             mpack_done_ext(reader);
-            return new QoreObject(QC_MSGPACKEXTENSION, getProgram(), new MsgPackExtension(tag.v.ext.exttype, bin.release()));
-            break;
+            return new QoreObject(QC_MSGPACKEXTENSION, getProgram(), new MsgPackExtension(mpack_tag_ext_exttype(&tag), bin.release()));
         }
         case MSGPACK_QORE_MODE: {
-            switch (tag.v.ext.exttype) {
+            switch (mpack_tag_ext_exttype(&tag)) {
+                // MessagePack built-in types
+                case MPACK_EXTTYPE_TIMESTAMP:
+                    return msgpack_unpack_ext_timestamp(reader, tag, xsink);
+
+                // Qore extension types
                 case MSGPACK_EXT_QORE_NULL:
                     return msgpack_unpack_ext_null(reader, tag, xsink);
                 case MSGPACK_EXT_QORE_DATE:
@@ -107,7 +116,7 @@ QoreHashNode* msgpack_unpack_map(mpack_reader_t* reader, mpack_tag_t tag, Operat
     ReferenceHolder<QoreHashNode> hash(new QoreHashNode, xsink);
 
     // read all elements
-    uint32_t size = tag.v.n;
+    uint32_t size = mpack_tag_map_count(&tag);
     for (uint32_t i = 0; i < size; i++) {
         // read key and value
         ValueHolder key(msgpack_unpack_value(reader, mode, xsink), xsink);
@@ -128,7 +137,7 @@ QoreHashNode* msgpack_unpack_map(mpack_reader_t* reader, mpack_tag_t tag, Operat
 }
 
 QoreStringNode* msgpack_unpack_string(mpack_reader_t* reader, mpack_tag_t tag, ExceptionSink* xsink) {
-    uint32_t size = tag.v.l;
+    uint32_t size = mpack_tag_str_length(&tag);
 
     // prepare string node and buffer for reading
     SimpleRefHolder<QoreStringNode> str(new QoreStringNode);
@@ -149,31 +158,33 @@ QoreStringNode* msgpack_unpack_string(mpack_reader_t* reader, mpack_tag_t tag, E
 QoreValue msgpack_unpack_value(mpack_reader_t* reader, OperationMode mode, ExceptionSink* xsink) {
     mpack_tag_t tag = mpack_read_tag(reader);
 
-    switch (tag.type) {
+    switch (mpack_tag_type(&tag)) {
         case mpack_type_array:
             return msgpack_unpack_array(reader, tag, mode, xsink);
         case mpack_type_bin:
             return msgpack_unpack_binary(reader, tag, xsink);
         case mpack_type_bool:
-            return tag.v.b;
+            return mpack_tag_bool_value(&tag);
         case mpack_type_double:
-            return tag.v.d;
+            return mpack_tag_double_value(&tag);
         case mpack_type_ext:
             return msgpack_unpack_ext(reader, tag, mode, xsink);
         case mpack_type_float:
-            return tag.v.f;
+            return mpack_tag_float_value(&tag);
         case mpack_type_int:
-            return tag.v.i;
+            return mpack_tag_int_value(&tag);
         case mpack_type_map:
             return msgpack_unpack_map(reader, tag, mode, xsink);
         case mpack_type_nil:
             return QoreValue();
         case mpack_type_str:
             return msgpack_unpack_string(reader, tag, xsink);
-        case mpack_type_uint:
-            if (tag.v.u <= LLONG_MAX)
-                return static_cast<int64>(tag.v.u);
-            return new QoreNumberNode(static_cast<double>(tag.v.u));
+        case mpack_type_uint: {
+            uint64_t val = mpack_tag_uint_value(&tag);
+            if (val <= LLONG_MAX)
+                return static_cast<int64>(val);
+            return new QoreNumberNode(static_cast<double>(val));
+        }
         default:
             mpack_reader_flag_error(reader, mpack_error_data);
             break;

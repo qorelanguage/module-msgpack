@@ -1,10 +1,11 @@
 ## module-msgpack
 
-MessagePack module for the Qore programming language.
-
-http://qore.org
+[msgpack]: https://msgpack.org
+[qore]: https://github.com/qorelanguage/qore
 
 https://github.com/qorelanguage/module-msgpack
+
+[MessagePack][msgpack] module for the [Qore][qore] programming language.
 
 ## Building
 

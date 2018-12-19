@@ -19,36 +19,39 @@ class MsgPackTest inherits QUnit::Test {
         addTestCase("MsgPack class Qore mode test", \MsgPackQoreModeTest());
         addTestCase("Pack test", \packTest());
         addTestCase("Unpack test", \unpackTest());
+        addTestCase("Timestamp test", \timestampTest());
         set_return_value(main());
     }
 
     private binary createPackedExt(int exttype, binary bin) {
-        if (exttype < -127) throw "INVALID-EXT-TYPE", "too small ext type (valid range: -127 -- 128)";
-        if (exttype > 128) throw "INVALID-EXT-TYPE", "too large ext type (valid range: -127 -- 128)";
+        if (exttype < -127 || exttype > 128)
+            throw "INVALID-EXT-TYPE", "too small ext type (valid range: -127 -- 128)";
+
+        binary binExtType = (exttype >= 0) ? exttype.encodeMsb(1) : exttype.encodeMsb(8).substr(7);
         int size = bin.size();
         if (size == 1) {
-            return <d4> + exttype.encodeMsb(1) + bin;
+            return <d4> + binExtType + bin;
         }
         if (size == 2) {
-            return <d5> + exttype.encodeMsb(1) + bin;
+            return <d5> + binExtType + bin;
         }
         if (size == 4) {
-            return <d6> + exttype.encodeMsb(1) + bin;
+            return <d6> + binExtType + bin;
         }
         if (size == 8) {
-            return <d7> + exttype.encodeMsb(1) + bin;
+            return <d7> + binExtType + bin;
         }
         if (size == 16) {
-            return <d8> + exttype.encodeMsb(1) + bin;
+            return <d8> + binExtType + bin;
         }
         if (size < 256) {
-            return <c7> + size.encodeMsb(2)[0] + exttype.encodeMsb(1) + bin;
+            return <c7> + size.encodeMsb(2)[1..1] + binExtType + bin;
         }
         if (size < 65535) {
-            return <c8> + size.encodeMsb(4)[0..1] + exttype.encodeMsb(1) + bin;
+            return <c8> + size.encodeMsb(4)[2..3] + binExtType + bin;
         }
         if (size < 4294967296) {
-            return <c9> + size.encodeMsb(8)[0..3] + size.encodeMsb(1) + exttype.encodeMsb(1) + bin;
+            return <c9> + size.encodeMsb(8)[4..7] + binExtType + bin;
         }
         throw "TOO-LARGE", "too large binary";
     }
@@ -112,9 +115,14 @@ class MsgPackTest inherits QUnit::Test {
 
         # absolute dates
         b = msgpack_pack(2018-02-01T07:30:42+01:00);
-        assertEq("2018-02-01T07:30:42+01:00", msgpack_unpack(b));
-        b = msgpack_pack(2018-02-01T07:30:42.0034+01:00);
-        assertEq("2018-02-01T07:30:42.003400+01:00", msgpack_unpack(b));
+        assertEq(2018-02-01T06:30:42+00:00, msgpack_unpack(b));
+        b = msgpack_pack(2018-02-01T07:30:42.003456+01:00);
+        assertEq(2018-02-01T06:30:42.003456+00:00, msgpack_unpack(b));
+        {
+            date d = now_us();
+            b = msgpack_pack(d);
+            assertEq(gmtime(d), msgpack_unpack(b));
+        }
 
         # relative dates
         b = msgpack_pack(0s);
@@ -268,11 +276,16 @@ class MsgPackTest inherits QUnit::Test {
         b = msgpack_pack(<feed>, MSGPACK_QORE_MODE);
         assertEq(<feed>, msgpack_unpack(b, MSGPACK_QORE_MODE));
 
-        # date
+        # absolute dates
         b = msgpack_pack(2018-02-01T07:30:42+01:00, MSGPACK_QORE_MODE);
         assertEq(2018-02-01T07:30:42+01:00, msgpack_unpack(b, MSGPACK_QORE_MODE));
         b = msgpack_pack(2018-02-01T07:30:42.0034+01:00, MSGPACK_QORE_MODE);
         assertEq(2018-02-01T07:30:42.0034+01:00, msgpack_unpack(b, MSGPACK_QORE_MODE));
+        {
+            date d = now_us();
+            b = msgpack_pack(d, MSGPACK_QORE_MODE);
+            assertEq(d, msgpack_unpack(b, MSGPACK_QORE_MODE));
+        }
 
         # relative dates
         b = msgpack_pack(0s, MSGPACK_QORE_MODE);
@@ -409,9 +422,14 @@ class MsgPackTest inherits QUnit::Test {
 
         # absolute dates
         b = mp.pack(2018-02-01T07:30:42+01:00);
-        assertEq("2018-02-01T07:30:42+01:00", mp.unpack(b));
+        assertEq(2018-02-01T06:30:42+00:00, mp.unpack(b));
         b = mp.pack(2018-02-01T07:30:42.0034+01:00);
-        assertEq("2018-02-01T07:30:42.003400+01:00", mp.unpack(b));
+        assertEq(2018-02-01T06:30:42.003400+00:00, mp.unpack(b));
+        {
+            date d = now_us();
+            b = mp.pack(d);
+            assertEq(gmtime(d), mp.unpack(b));
+        }
 
         # relative dates
         b = mp.pack(0s);
@@ -558,11 +576,16 @@ class MsgPackTest inherits QUnit::Test {
         b = mp.pack(<feed>);
         assertEq(<feed>, mp.unpack(b));
 
-        # date
+        # absolute dates
         b = mp.pack(2018-02-01T07:30:42+01:00);
         assertEq(2018-02-01T07:30:42+01:00, mp.unpack(b));
         b = mp.pack(2018-02-01T07:30:42.0034+01:00);
         assertEq(2018-02-01T07:30:42.0034+01:00, mp.unpack(b));
+        {
+            date d = now_us();
+            b = mp.pack(d);
+            assertEq(d, mp.unpack(b));
+        }
 
         # relative dates
         b = mp.pack(0s);
@@ -701,5 +724,37 @@ class MsgPackTest inherits QUnit::Test {
         assertEq(NT_OBJECT, rv.typeCode());
         assertEq("MsgPackExtension", rv.className());
         assertEq(NULL, msgpack_unpack(b, MSGPACK_QORE_MODE));
+    }
+
+    timestampTest() {
+        binary b;
+        int bindata;
+        auto rv;
+
+        b = msgpack_pack(1970-01-01T00:00:00+00:00);
+        assertEq(1970-01-01T00:00:00+00:00, msgpack_unpack(b));
+        b = msgpack_pack(1970-01-01T00:00:00-07:30);
+        assertEq(1970-01-01T07:30:00+00:00, msgpack_unpack(b));
+
+        # test timestamp 32-bit format
+        b = createPackedExt(-1, <5C19DB9B>);
+        rv = msgpack_unpack(b);
+        assertEq(2018-12-19T05:48:11+00:00, rv);
+
+        b = createPackedExt(-1, <00000000>);
+        rv = msgpack_unpack(b);
+        assertEq(1970-01-01T00:00Z, rv);
+
+        # test timestamp 64-bit format
+        bindata = (123456000 << 34) | 1545198491;
+        b = createPackedExt(-1, bindata.encodeMsb(8));
+        rv = msgpack_unpack(b);
+        assertEq(2018-12-19T05:48:11.123456+00:00, rv);
+
+        # test timestamp 96-bit format
+        bindata = 123456000;
+        b = createPackedExt(-1, bindata.encodeMsb(4) + <000000005C19DB9B>);
+        rv = msgpack_unpack(b);
+        assertEq(2018-12-19T05:48:11.123456+00:00, rv);
     }
 }

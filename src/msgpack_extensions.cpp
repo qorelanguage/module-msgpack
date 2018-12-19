@@ -170,10 +170,25 @@ void msgpack_pack_ext_string(mpack_writer_t* writer, const QoreString* str) {
     mpack_finish_ext(writer);
 }
 
+void msgpack_pack_ext_timestamp(mpack_writer_t* writer, const DateTimeNode* date) {
+    int64_t seconds = date->getEpochSecondsUTC();
+    int32_t ns = date->getMicrosecond() * 1000;
+
+    if (ns == 0)
+        mpack_write_timestamp_seconds(writer, seconds);
+    else
+        mpack_write_timestamp(writer, seconds, ns);
+}
+
 
 //-------------------------------
 // Extension unpacking functions
 //-------------------------------
+
+AbstractQoreNode* msgpack_unpack_ext_timestamp(mpack_reader_t* reader, mpack_tag_t tag, ExceptionSink* xsink) {
+    mpack_timestamp_t timestamp = mpack_read_timestamp(reader, mpack_tag_ext_length(&tag));
+    return DateTimeNode::makeAbsolute(nullptr, timestamp.seconds, timestamp.nanoseconds / 1000);
+}
 
 AbstractQoreNode* msgpack_unpack_ext_date(mpack_reader_t* reader, mpack_tag_t tag, ExceptionSink* xsink) {
     char bytes[sizeof(int64_t)];
@@ -248,7 +263,7 @@ AbstractQoreNode* msgpack_unpack_ext_number(mpack_reader_t* reader, mpack_tag_t 
             break;
         case MSGPACK_NUMBER_NORM: {
             // check extension size
-            uint32_t size = tag.v.ext.length;
+            uint32_t size = mpack_tag_ext_length(&tag);
             if (size < 6) { // 1B numberType + 4B prec + 1B number string
                 mpack_reader_flag_error(reader, mpack_error_data);
                 mpack_done_ext(reader);
@@ -281,7 +296,7 @@ AbstractQoreNode* msgpack_unpack_ext_number(mpack_reader_t* reader, mpack_tag_t 
 }
 
 AbstractQoreNode* msgpack_unpack_ext_string(mpack_reader_t* reader, mpack_tag_t tag, ExceptionSink* xsink) {
-    uint32_t size = tag.v.ext.length;
+    uint32_t size = mpack_tag_ext_length(&tag);
     if (size < 1) {
         mpack_reader_flag_error(reader, mpack_error_data);
         // TODO add xsink exception

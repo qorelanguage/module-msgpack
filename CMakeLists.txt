@@ -11,6 +11,7 @@ set(PROJECT_VERSION "${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}")
 set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
 
 include_directories( ${CMAKE_SOURCE_DIR}/src )
+include_directories( ${CMAKE_SOURCE_DIR}/extern_libs )
 
 if (NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE "release")
@@ -45,7 +46,8 @@ set(QPP_SRC
 )
 
 set(CPP_SRC
-    src/mpack/mpack.c
+    #src/mpack/mpack.c
+    extern_libs/mpack/mpack.c
     src/msgpack-module.cpp
     src/msgpack_enums.cpp
     src/msgpack_extensions.cpp
@@ -62,6 +64,20 @@ set(module_name "msgpack")
 set(QORE_DOX_TMPL_SRC
   docs/mainpage.dox.tmpl
 )
+
+# disable Expect and Node API of MPack
+add_definitions(-DMPACK_EXPECT=0)
+add_definitions(-DMPACK_NODE=0)
+
+# enable Extension handling in MPack
+add_definitions(-DMPACK_EXTENSIONS=1)
+
+# enable read and write tracking in MPack to catch erroneous code
+add_definitions(-DMPACK_READ_TRACKING=1)
+add_definitions(-DMPACK_WRITE_TRACKING=1)
+
+# enable MPack compatibility features
+add_definitions(-DMPACK_COMPATIBILITY=1)
 
 add_library(${module_name} SHARED ${CPP_SRC} ${QPP_SOURCES})
 
