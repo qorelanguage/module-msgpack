@@ -1,7 +1,7 @@
 /**
  * The MIT License (MIT)
  * 
- * Copyright (c) 2015-2016 Nicholas Fraser
+ * Copyright (c) 2015-2018 Nicholas Fraser
  * 
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,7 +24,7 @@
  */
 
 /*
- * This is the MPack 0.9 amalgamation package.
+ * This is the MPack 1.0 amalgamation package.
  *
  * http://github.com/ludocode/mpack
  */
@@ -33,13 +33,14 @@
 #define MPACK_H 1
 
 #define MPACK_AMALGAMATED 1
+#define MPACK_RELEASE_VERSION 1
 
 #if defined(MPACK_HAS_CONFIG) && MPACK_HAS_CONFIG
 #include "mpack-config.h"
 #endif
 
 
-/* mpack-config.h.sample.h */
+/* mpack/mpack-defaults.h.h */
 
 
 /**
@@ -89,13 +90,33 @@
  * Enables compatibility features for reading and writing older
  * versions of MessagePack.
  *
- * This is on by default if it is not defined. It can be disabled to
- * minimize library size on embedded devices. If disabled, the behaviour
- * is equivalent to using the default version, @ref mpack_version_current.
+ * This is disabled by default. When disabled, the behaviour is equivalent to
+ * using the default version, @ref mpack_version_current.
+ *
+ * Enable this if you need to interoperate with applications or data that do
+ * not support the new (v5) MessagePack spec. See the section on v4
+ * compatibility in @ref docs/protocol.md for more information.
  */
 #ifndef MPACK_COMPATIBILITY
-#define MPACK_COMPATIBILITY 1
+#define MPACK_COMPATIBILITY 0
 #endif
+
+/**
+ * @def MPACK_EXTENSIONS
+ *
+ * Enables the use of extension types.
+ *
+ * This is disabled by default. Define it to 1 to enable it. If disabled,
+ * functions to read and write extensions will not exist, and any occurrence of
+ * extension types in parsed messages will flag @ref mpack_error_invalid.
+ *
+ * MPack discourages the use of extension types. See the section on extension
+ * types in @ref docs/protocol.md for more information.
+ */
+#ifndef MPACK_EXTENSIONS
+#define MPACK_EXTENSIONS 0
+#endif
+
 
 /**
  * @}
@@ -343,7 +364,6 @@
 
 /**
  * The maximum depth for the node parser if @ref MPACK_MALLOC is not available.
- * The parsing stack is placed on the call stack.
  */
 #ifndef MPACK_NODE_MAX_DEPTH_WITHOUT_MALLOC
 #define MPACK_NODE_MAX_DEPTH_WITHOUT_MALLOC 32
@@ -386,11 +406,23 @@
 
 
 
+/* Doxygen preprocs */
+#if defined(MPACK_DOXYGEN) && MPACK_DOXYGEN
+#define MPACK_HAS_CONFIG 0
+// We give these their default values of 0 here even though they are defined to
+// 1 in the doxyfile. Doxygen will show this as the value in the docs, even
+// though it ignores it when parsing the rest of the source. This is what we
+// want, since we want the documentation to show these defaults but still
+// generate documentation for the functions they add when they're on.
+#define MPACK_COMPATIBILITY 0
+#define MPACK_EXTENSIONS 0
+#endif
+
+
+
 /* Include the custom config file if enabled */
 
-#ifdef MPACK_DOXYGEN
-#define MPACK_HAS_CONFIG 1
-#elif defined(MPACK_HAS_CONFIG) && MPACK_HAS_CONFIG
+#if defined(MPACK_HAS_CONFIG) && MPACK_HAS_CONFIG
 /* #include "mpack-config.h" */
 #endif
 
@@ -398,13 +430,12 @@
  * Now that the optional config is included, we define the defaults
  * for any of the configuration options and other switches that aren't
  * yet defined.
- *
- * In development mode, or when the library is used without being
- * amalgamated, we set the defaults by including the sample config
- * directly. When amalgamated, this is disabled and the contents
- * of the sample config have been inserted into the top of mpack.h.
  */
-/* #include "mpack-config.h.sample" */
+#if defined(MPACK_DOXYGEN) && MPACK_DOXYGEN
+/* #include "mpack-defaults-doxygen.h" */
+#else
+/* #include "mpack-defaults.h" */
+#endif
 
 /*
  * All remaining configuration options that have not yet been set must
@@ -541,6 +572,25 @@ MPACK_HEADER_START
 #define MPACK_STRINGIFY_IMPL(arg) #arg
 #define MPACK_STRINGIFY(arg) MPACK_STRINGIFY_IMPL(arg)
 
+// This is a workaround for MSVC's incorrect expansion of __VA_ARGS__. It
+// treats __VA_ARGS__ as a single preprocessor token when passed in the
+// argument list of another macro unless we use an outer wrapper to expand it
+// lexically first. (For safety/consistency we use this in all variadic macros
+// that don't ignore the variadic arguments regardless of whether __VA_ARGS__
+// is passed to another macro.)
+//     https://stackoverflow.com/a/32400131
+#define MPACK_EXPAND(x) x
+
+// Extracts the first argument of a variadic macro list, where there might only
+// be one argument.
+#define MPACK_EXTRACT_ARG0_IMPL(first, ...) first
+#define MPACK_EXTRACT_ARG0(...) MPACK_EXPAND(MPACK_EXTRACT_ARG0_IMPL( __VA_ARGS__ , ignored))
+
+// Stringifies the first argument of a variadic macro list, where there might
+// only be one argument.
+#define MPACK_STRINGIFY_ARG0_impl(first, ...) #first
+#define MPACK_STRINGIFY_ARG0(...) MPACK_EXPAND(MPACK_STRINGIFY_ARG0_impl( __VA_ARGS__ , ignored))
+
 
 
 /*
@@ -587,8 +637,9 @@ MPACK_HEADER_START
     #define MPACK_INLINE inline
 
 #elif defined(_MSC_VER)
-    // MSVC 2013 always uses COMDAT linkage, but it doesn't treat
-    // 'inline' as a keyword in C99 mode.
+    // MSVC 2013 always uses COMDAT linkage, but it doesn't treat 'inline' as a
+    // keyword in C99 mode. (This appears to be fixed in a later version of
+    // MSVC but we don't bother detecting it.)
     #define MPACK_INLINE __inline
     #define MPACK_STATIC_INLINE static __inline
 
@@ -979,29 +1030,50 @@ MPACK_HEADER_START
     MPACK_NORETURN(void mpack_assert_fail_wrapper(const char* message));
     #if MPACK_STDIO
         MPACK_NORETURN(void mpack_assert_fail_format(const char* format, ...));
-        #define mpack_assert_fail_at(line, file, expr, ...) \
-                mpack_assert_fail_format("mpack assertion failed at " file ":" #line "\n" expr "\n" __VA_ARGS__)
+        #define mpack_assert_fail_at(line, file, exprstr, format, ...) \
+                MPACK_EXPAND(mpack_assert_fail_format("mpack assertion failed at " file ":" #line "\n%s\n" format, exprstr, __VA_ARGS__))
     #else
-        #define mpack_assert_fail_at(line, file, ...) \
-                mpack_assert_fail_wrapper("mpack assertion failed at " file ":" #line )
+        #define mpack_assert_fail_at(line, file, exprstr, format, ...) \
+                mpack_assert_fail_wrapper("mpack assertion failed at " file ":" #line "\n" exprstr "\n")
     #endif
 
-    #define mpack_assert_fail_pos(line, file, expr, ...) mpack_assert_fail_at(line, file, expr, __VA_ARGS__)
-    #define mpack_assert(expr, ...) ((!(expr)) ? mpack_assert_fail_pos(__LINE__, __FILE__, #expr, __VA_ARGS__) : (void)0)
+    #define mpack_assert_fail_pos(line, file, exprstr, expr, ...) \
+            MPACK_EXPAND(mpack_assert_fail_at(line, file, exprstr, __VA_ARGS__))
+
+    // This contains a workaround to the pedantic C99 requirement of having at
+    // least one argument to a variadic macro. The first argument is the
+    // boolean expression, the optional second argument (if provided) must be a
+    // literal format string, and any additional arguments are the format
+    // argument list.
+    //
+    // Unfortunately this means macros are expanded in the expression before it
+    // gets stringified. I haven't found a workaround to this.
+    //
+    // This adds two unused arguments to the format argument list when a
+    // format string is provided, so this would complicate the use of
+    // -Wformat and __attribute__((format)) on mpack_assert_fail_format() if we
+    // ever bothered to implement it.
+    #define mpack_assert(...) \
+            MPACK_EXPAND(((!(MPACK_EXTRACT_ARG0(__VA_ARGS__))) ? \
+                mpack_assert_fail_pos(__LINE__, __FILE__, MPACK_STRINGIFY_ARG0(__VA_ARGS__) , __VA_ARGS__ , "", NULL) : \
+                (void)0))
 
     void mpack_break_hit(const char* message);
     #if MPACK_STDIO
         void mpack_break_hit_format(const char* format, ...);
         #define mpack_break_hit_at(line, file, ...) \
-                mpack_break_hit_format("mpack breakpoint hit at " file ":" #line "\n" __VA_ARGS__)
+                MPACK_EXPAND(mpack_break_hit_format("mpack breakpoint hit at " file ":" #line "\n" __VA_ARGS__))
     #else
         #define mpack_break_hit_at(line, file, ...) \
                 mpack_break_hit("mpack breakpoint hit at " file ":" #line )
     #endif
-    #define mpack_break_hit_pos(line, file, ...) mpack_break_hit_at(line, file, __VA_ARGS__)
-    #define mpack_break(...) mpack_break_hit_pos(__LINE__, __FILE__, __VA_ARGS__)
+    #define mpack_break_hit_pos(line, file, ...) MPACK_EXPAND(mpack_break_hit_at(line, file, __VA_ARGS__))
+    #define mpack_break(...) MPACK_EXPAND(mpack_break_hit_pos(__LINE__, __FILE__, __VA_ARGS__))
 #else
-    #define mpack_assert(expr, ...) ((!(expr)) ? MPACK_UNREACHABLE, (void)0 : (void)0)
+    #define mpack_assert(...) \
+            (MPACK_EXPAND((!(MPACK_EXTRACT_ARG0(__VA_ARGS__))) ? \
+                (MPACK_UNREACHABLE, (void)0) : \
+                (void)0))
     #define mpack_break(...) ((void)0)
 #endif
 
@@ -1090,7 +1162,8 @@ size_t mpack_strlen(const char* s);
 
 /* Debug logging */
 #if 0
-    #define mpack_log(...) (printf(__VA_ARGS__), fflush(stdout))
+    #include <stdio.h>
+    #define mpack_log(...) (MPACK_EXPAND(printf(__VA_ARGS__), fflush(stdout)))
 #else
     #define mpack_log(...) ((void)0)
 #endif
@@ -1160,12 +1233,16 @@ MPACK_HEADER_END
 
 /* #include "mpack-platform.h" */
 
+#ifndef MPACK_PRINT_BYTE_COUNT
+#define MPACK_PRINT_BYTE_COUNT 12
+#endif
+
 MPACK_HEADER_START
 
 
 
 /**
- * @defgroup common Common Elements
+ * @defgroup common Tags and Common Elements
  *
  * Contains types, constants and functions shared by both the encoding
  * and decoding portions of MPack.
@@ -1175,8 +1252,8 @@ MPACK_HEADER_START
 
 /* Version information */
 
-#define MPACK_VERSION_MAJOR 0  /**< The major version number of MPack. */
-#define MPACK_VERSION_MINOR 9  /**< The minor version number of MPack. */
+#define MPACK_VERSION_MAJOR 1  /**< The major version number of MPack. */
+#define MPACK_VERSION_MINOR 0  /**< The minor version number of MPack. */
 #define MPACK_VERSION_PATCH 0  /**< The patch version number of MPack. */
 
 /** A number containing the version number of MPack for comparison purposes. */
@@ -1230,15 +1307,19 @@ MPACK_HEADER_START
  *
  * The maximum encoded size of a tag in bytes.
  */
-#define MPACK_MAXIMUM_TAG_SIZE MPACK_TAG_SIZE_TIMESTAMP12 // 15
+#define MPACK_MAXIMUM_TAG_SIZE 9
 /** @endcond */
 
+#if MPACK_EXTENSIONS
 /**
  * @def MPACK_TIMESTAMP_NANOSECONDS_MAX
  *
  * The maximum value of nanoseconds for a timestamp.
+ *
+ * @note This requires @ref MPACK_EXTENSIONS.
  */
 #define MPACK_TIMESTAMP_NANOSECONDS_MAX 999999999
+#endif
 
 
 
@@ -1250,7 +1331,7 @@ MPACK_HEADER_START
  * version of the MessagePack spec. This is necessary to interface with
  * older MessagePack libraries that do not support new MessagePack features.
  *
- * This requires @ref MPACK_COMPATIBILITY.
+ * @note This requires @ref MPACK_COMPATIBILITY.
  */
 typedef enum mpack_version_t {
 
@@ -1260,8 +1341,7 @@ typedef enum mpack_version_t {
     mpack_version_v4 = 4,
 
     /**
-     * Version 2.0/v5, supporting the @c str8, @c bin and @c ext types
-     * (including timestamp.)
+     * Version 2.0/v5, supporting the @c str8, @c bin and @c ext types.
      */
     mpack_version_v5 = 5,
 
@@ -1284,6 +1364,7 @@ typedef enum mpack_error_t {
     mpack_ok = 0,        /**< No error. */
     mpack_error_io = 2,  /**< The reader or writer failed to fill or flush, or some other file or socket error occurred. */
     mpack_error_invalid, /**< The data read is not valid MessagePack. */
+    mpack_error_unsupported, /**< The data read is not supported by this configuration of MPack. (See @ref MPACK_EXTENSIONS.) */
     mpack_error_type,    /**< The type or value range did not match what was expected by the caller. */
     mpack_error_too_big, /**< A read or write was bigger than the maximum size allowed for that operation. */
     mpack_error_memory,  /**< An allocation failure occurred. */
@@ -1300,20 +1381,32 @@ const char* mpack_error_to_string(mpack_error_t error);
 
 /**
  * Defines the type of a MessagePack tag.
+ *
+ * Note that extension types, both user defined and built-in, are represented
+ * in tags as @ref mpack_type_ext. The value for an extension type is stored
+ * separately.
  */
 typedef enum mpack_type_t {
-    mpack_type_nil = 1,   /**< A null value. */
-    mpack_type_bool,      /**< A boolean (true or false.) */
-    mpack_type_int,       /**< A 64-bit signed integer. */
-    mpack_type_uint,      /**< A 64-bit unsigned integer. */
-    mpack_type_float,     /**< A 32-bit IEEE 754 floating point number. */
-    mpack_type_double,    /**< A 64-bit IEEE 754 floating point number. */
-    mpack_type_str,       /**< A string. */
-    mpack_type_bin,       /**< A chunk of binary data. */
-    mpack_type_ext,       /**< A typed MessagePack extension object containing a chunk of binary data. */
-    mpack_type_array,     /**< An array of MessagePack objects. */
-    mpack_type_map,       /**< An ordered map of key/value pairs of MessagePack objects. */
-    mpack_type_timestamp, /**< A timestamp. */
+    mpack_type_missing = 0, /**< Special type indicating a missing optional value. */
+    mpack_type_nil,         /**< A null value. */
+    mpack_type_bool,        /**< A boolean (true or false.) */
+    mpack_type_int,         /**< A 64-bit signed integer. */
+    mpack_type_uint,        /**< A 64-bit unsigned integer. */
+    mpack_type_float,       /**< A 32-bit IEEE 754 floating point number. */
+    mpack_type_double,      /**< A 64-bit IEEE 754 floating point number. */
+    mpack_type_str,         /**< A string. */
+    mpack_type_bin,         /**< A chunk of binary data. */
+    mpack_type_array,       /**< An array of MessagePack objects. */
+    mpack_type_map,         /**< An ordered map of key/value pairs of MessagePack objects. */
+
+    #if MPACK_EXTENSIONS
+    /**
+     * A typed MessagePack extension object containing a chunk of binary data.
+     *
+     * @note This requires @ref MPACK_EXTENSIONS.
+     */
+    mpack_type_ext,
+    #endif
 } mpack_type_t;
 
 /**
@@ -1322,21 +1415,26 @@ typedef enum mpack_type_t {
  */
 const char* mpack_type_to_string(mpack_type_t type);
 
+#if MPACK_EXTENSIONS
 /**
  * A timestamp.
+ *
+ * @note This requires @ref MPACK_EXTENSIONS.
  */
 typedef struct mpack_timestamp_t {
     int64_t seconds; /*< The number of seconds (signed) since 1970-01-01T00:00:00Z. */
     uint32_t nanoseconds; /*< The number of additional nanoseconds, between 0 and 999,999,999. */
 } mpack_timestamp_t;
+#endif
 
 /**
- * An MPack tag is a MessagePack object header. It is a variant type representing
- * any kind of object, and includes the value of that object when it is not a
- * compound type (i.e. boolean, integer, float.)
+ * An MPack tag is a MessagePack object header. It is a variant type
+ * representing any kind of object, and includes the length of compound types
+ * (e.g. map, array, string) or the value of non-compound types (e.g. boolean,
+ * integer, float.)
  *
- * If the type is compound (str, bin, ext, array or map), the embedded data is
- * stored separately.
+ * If the type is compound (str, bin, ext, array or map), the contained
+ * elements or bytes are stored separately.
  *
  * This structure is opaque; its fields should not be accessed outside
  * of MPack.
@@ -1346,61 +1444,29 @@ typedef struct mpack_tag_t mpack_tag_t;
 /* Hide internals from documentation */
 /** @cond */
 struct mpack_tag_t {
+    mpack_type_t type; /*< The type of value. */
+
+    #if MPACK_EXTENSIONS
+    int8_t exttype; /*< The extension type if the type is @ref mpack_type_ext. */
+    #endif
+
     /* The value for non-compound types. */
-    union
-    {
+    union {
         uint64_t u; /*< The value if the type is unsigned int. */
         int64_t  i; /*< The value if the type is signed int. */
         double   d; /*< The value if the type is double. */
         float    f; /*< The value if the type is float. */
         bool     b; /*< The value if the type is bool. */
 
-        /* The number of bytes if the type is a str or bin. */
+        /* The number of bytes if the type is str, bin or ext. */
         uint32_t l;
 
         /* The element count if the type is an array, or the number of
             key/value pairs if the type is map. */
         uint32_t n;
-
-        /*
-         * The extension data if the type is @ref mpack_type_ext.
-         */
-        struct {
-            int8_t exttype; /*< The extension type. */
-            uint32_t length; /*< The number of bytes. */
-        } ext;
-
-        /* The value if the type is @ref mpack_type_timestamp. */
-        mpack_timestamp_t timestamp;
     } v;
-
-    /* The type of value. */
-    mpack_type_t type;
 };
 /** @endcond */
-
-/**
- * @name Other tag functions
- * @{
- */
-
-/** @cond */
-// Currently defined extension types
-#define MPACK_TIMESTAMP_EXTTYPE ((int8_t)(-1))
-/** @endcond */
-
-MPACK_INLINE void mpack_tag_assert_valid(mpack_tag_t* tag) {
-    mpack_assert(tag->type != mpack_type_ext || tag->v.ext.exttype != MPACK_TIMESTAMP_EXTTYPE,
-            "ext tag of exttype %i is reserved for timestamps.", MPACK_TIMESTAMP_EXTTYPE);
-    mpack_assert(tag->type != mpack_type_timestamp ||
-            tag->v.timestamp.nanoseconds <= MPACK_TIMESTAMP_NANOSECONDS_MAX,
-            "timestamp tag is not valid! %u nanoseconds is out of bounds",
-            tag->v.timestamp.nanoseconds);
-}
-
-/**
- * @}
- */
 
 /**
  * @name Tag Generators
@@ -1408,11 +1474,18 @@ MPACK_INLINE void mpack_tag_assert_valid(mpack_tag_t* tag) {
  */
 
 /**
+ * @def MPACK_TAG_ZERO
+ *
  * An @ref mpack_tag_t initializer that zeroes the given tag.
  *
- * This does not make the tag nil! The tag's type is invalid when initialized this way.
+ * @warning This does not make the tag nil! The tag's type is invalid when
+ * initialized this way. Use @ref mpack_tag_make_nil() to generate a nil tag.
  */
-#define MPACK_TAG_ZERO {{0}, (mpack_type_t)0}
+#if MPACK_EXTENSIONS
+#define MPACK_TAG_ZERO {(mpack_type_t)0, 0, {0}}
+#else
+#define MPACK_TAG_ZERO {(mpack_type_t)0, {0}}
+#endif
 
 /** Generates a nil tag. */
 MPACK_INLINE mpack_tag_t mpack_tag_make_nil(void) {
@@ -1509,44 +1582,20 @@ MPACK_INLINE mpack_tag_t mpack_tag_make_bin(uint32_t length) {
     return ret;
 }
 
-/** Generates an ext tag. */
+#if MPACK_EXTENSIONS
+/**
+ * Generates an ext tag.
+ *
+ * @note This requires @ref MPACK_EXTENSIONS.
+ */
 MPACK_INLINE mpack_tag_t mpack_tag_make_ext(int8_t exttype, uint32_t length) {
     mpack_tag_t ret = MPACK_TAG_ZERO;
     ret.type = mpack_type_ext;
-    ret.v.ext.exttype = exttype;
-    ret.v.ext.length = length;
-    mpack_tag_assert_valid(&ret);
+    ret.exttype = exttype;
+    ret.v.l = length;
     return ret;
 }
-
-/** Generates a timestamp tag from a number of seconds and nanoseconds. */
-MPACK_INLINE mpack_tag_t mpack_tag_make_timestamp(int64_t seconds, uint32_t nanoseconds) {
-    mpack_tag_t ret = MPACK_TAG_ZERO;
-    ret.type = mpack_type_timestamp;
-    ret.v.timestamp.seconds = seconds;
-    ret.v.timestamp.nanoseconds = nanoseconds;
-    mpack_tag_assert_valid(&ret);
-    return ret;
-}
-
-/** Generates a timestamp tag from a number of seconds (with zero nanoseconds.) */
-MPACK_INLINE mpack_tag_t mpack_tag_make_timestamp_seconds(int64_t seconds) {
-    mpack_tag_t ret = MPACK_TAG_ZERO;
-    ret.type = mpack_type_timestamp;
-    ret.v.timestamp.seconds = seconds;
-    ret.v.timestamp.nanoseconds = 0;
-    mpack_tag_assert_valid(&ret);
-    return ret;
-}
-
-/** Generates a timestamp tag from an mpack_timestamp_t. */
-MPACK_INLINE mpack_tag_t mpack_tag_make_timestamp_struct(mpack_timestamp_t timestamp) {
-    mpack_tag_t ret = MPACK_TAG_ZERO;
-    ret.type = mpack_type_timestamp;
-    ret.v.timestamp = timestamp;
-    mpack_tag_assert_valid(&ret);
-    return ret;
-}
+#endif
 
 /**
  * @}
@@ -1567,6 +1616,9 @@ MPACK_INLINE mpack_type_t mpack_tag_type(mpack_tag_t* tag) {
 /**
  * Gets the boolean value of a bool-type tag. The tag must be of type @ref
  * mpack_type_bool.
+ *
+ * This asserts that the type in the tag is @ref mpack_type_bool. (No check is
+ * performed if MPACK_DEBUG is not set.)
  */
 MPACK_INLINE bool mpack_tag_bool_value(mpack_tag_t* tag) {
     mpack_assert(tag->type == mpack_type_bool, "tag is not a bool!");
@@ -1576,7 +1628,13 @@ MPACK_INLINE bool mpack_tag_bool_value(mpack_tag_t* tag) {
 /**
  * Gets the signed integer value of an int-type tag.
  *
- * This does not convert between signed and unsigned tags! A positive integer may be stored in a tag as either @ref mpack_type_int or @ref mpack_type_uint. You must check the type first; this can only be used if the type is @ref mpack_type_int.
+ * This asserts that the type in the tag is @ref mpack_type_int. (No check is
+ * performed if MPACK_DEBUG is not set.)
+ *
+ * @warning This does not convert between signed and unsigned tags! A positive
+ * integer may be stored in a tag as either @ref mpack_type_int or @ref
+ * mpack_type_uint. You must check the type first; this can only be used if the
+ * type is @ref mpack_type_int.
  *
  * @see mpack_type_int
  */
@@ -1586,9 +1644,15 @@ MPACK_INLINE int64_t mpack_tag_int_value(mpack_tag_t* tag) {
 }
 
 /**
- * Gets the unsigned integer value of an uint-type tag.
+ * Gets the unsigned integer value of a uint-type tag.
  *
- * This does not convert between signed and unsigned tags! A positive integer may be stored in a tag as either @ref mpack_type_int or @ref mpack_type_uint. You must check the type first; this can only be used if the type is @ref mpack_type_uint.
+ * This asserts that the type in the tag is @ref mpack_type_uint. (No check is
+ * performed if MPACK_DEBUG is not set.)
+ *
+ * @warning This does not convert between signed and unsigned tags! A positive
+ * integer may be stored in a tag as either @ref mpack_type_int or @ref
+ * mpack_type_uint. You must check the type first; this can only be used if the
+ * type is @ref mpack_type_uint.
  *
  * @see mpack_type_uint
  */
@@ -1600,7 +1664,11 @@ MPACK_INLINE uint64_t mpack_tag_uint_value(mpack_tag_t* tag) {
 /**
  * Gets the float value of a float-type tag.
  *
- * This does not convert between float and double tags. This can only be used if the type is @ref mpack_type_float.
+ * This asserts that the type in the tag is @ref mpack_type_float. (No check is
+ * performed if MPACK_DEBUG is not set.)
+ *
+ * @warning This does not convert between float and double tags! This can only
+ * be used if the type is @ref mpack_type_float.
  *
  * @see mpack_type_float
  */
@@ -1612,7 +1680,11 @@ MPACK_INLINE float mpack_tag_float_value(mpack_tag_t* tag) {
 /**
  * Gets the double value of a double-type tag.
  *
- * This does not convert between float and double tags. This can only be used if the type is @ref mpack_type_double.
+ * This asserts that the type in the tag is @ref mpack_type_double. (No check
+ * is performed if MPACK_DEBUG is not set.)
+ *
+ * @warning This does not convert between float and double tags! This can only
+ * be used if the type is @ref mpack_type_double.
  *
  * @see mpack_type_double
  */
@@ -1624,6 +1696,9 @@ MPACK_INLINE double mpack_tag_double_value(mpack_tag_t* tag) {
 /**
  * Gets the number of elements in an array tag.
  *
+ * This asserts that the type in the tag is @ref mpack_type_array. (No check is
+ * performed if MPACK_DEBUG is not set.)
+ *
  * @see mpack_type_array
  */
 MPACK_INLINE uint32_t mpack_tag_array_count(mpack_tag_t* tag) {
@@ -1633,6 +1708,9 @@ MPACK_INLINE uint32_t mpack_tag_array_count(mpack_tag_t* tag) {
 
 /**
  * Gets the number of key-value pairs in a map tag.
+ *
+ * This asserts that the type in the tag is @ref mpack_type_map. (No check is
+ * performed if MPACK_DEBUG is not set.)
  *
  * @see mpack_type_map
  */
@@ -1644,6 +1722,9 @@ MPACK_INLINE uint32_t mpack_tag_map_count(mpack_tag_t* tag) {
 /**
  * Gets the length in bytes of a str-type tag.
  *
+ * This asserts that the type in the tag is @ref mpack_type_str. (No check is
+ * performed if MPACK_DEBUG is not set.)
+ *
  * @see mpack_type_str
  */
 MPACK_INLINE uint32_t mpack_tag_str_length(mpack_tag_t* tag) {
@@ -1654,6 +1735,9 @@ MPACK_INLINE uint32_t mpack_tag_str_length(mpack_tag_t* tag) {
 /**
  * Gets the length in bytes of a bin-type tag.
  *
+ * This asserts that the type in the tag is @ref mpack_type_bin. (No check is
+ * performed if MPACK_DEBUG is not set.)
+ *
  * @see mpack_type_bin
  */
 MPACK_INLINE uint32_t mpack_tag_bin_length(mpack_tag_t* tag) {
@@ -1661,24 +1745,58 @@ MPACK_INLINE uint32_t mpack_tag_bin_length(mpack_tag_t* tag) {
     return tag->v.l;
 }
 
+#if MPACK_EXTENSIONS
 /**
  * Gets the length in bytes of an ext-type tag.
+ *
+ * This asserts that the type in the tag is @ref mpack_type_ext. (No check is
+ * performed if MPACK_DEBUG is not set.)
+ *
+ * @note This requires @ref MPACK_EXTENSIONS.
  *
  * @see mpack_type_ext
  */
 MPACK_INLINE uint32_t mpack_tag_ext_length(mpack_tag_t* tag) {
     mpack_assert(tag->type == mpack_type_ext, "tag is not an ext!");
-    return tag->v.ext.length;
+    return tag->v.l;
 }
 
 /**
  * Gets the extension type (exttype) of an ext-type tag.
  *
+ * This asserts that the type in the tag is @ref mpack_type_ext. (No check is
+ * performed if MPACK_DEBUG is not set.)
+ *
+ * @note This requires @ref MPACK_EXTENSIONS.
+ *
  * @see mpack_type_ext
  */
 MPACK_INLINE int8_t mpack_tag_ext_exttype(mpack_tag_t* tag) {
     mpack_assert(tag->type == mpack_type_ext, "tag is not an ext!");
-    return tag->v.ext.exttype;
+    return tag->exttype;
+}
+#endif
+
+/**
+ * Gets the length in bytes of a str-, bin- or ext-type tag.
+ *
+ * This asserts that the type in the tag is @ref mpack_type_str, @ref
+ * mpack_type_bin or @ref mpack_type_ext. (No check is performed if MPACK_DEBUG
+ * is not set.)
+ *
+ * @see mpack_type_str
+ * @see mpack_type_bin
+ * @see mpack_type_ext
+ */
+MPACK_INLINE uint32_t mpack_tag_bytes(mpack_tag_t* tag) {
+    #if MPACK_EXTENSIONS
+    mpack_assert(tag->type == mpack_type_str || tag->type == mpack_type_bin
+            || tag->type == mpack_type_ext, "tag is not a str, bin or ext!");
+    #else
+    mpack_assert(tag->type == mpack_type_str || tag->type == mpack_type_bin,
+            "tag is not a str or bin!");
+    #endif
+    return tag->v.l;
 }
 
 /**
@@ -1689,6 +1807,15 @@ MPACK_INLINE int8_t mpack_tag_ext_exttype(mpack_tag_t* tag) {
  * @name Other tag functions
  * @{
  */
+
+#if MPACK_EXTENSIONS
+/**
+ * The extension type for a timestamp.
+ *
+ * @note This requires @ref MPACK_EXTENSIONS.
+ */
+#define MPACK_EXTTYPE_TIMESTAMP ((int8_t)(-1))
+#endif
 
 /**
  * Compares two tags with an arbitrary fixed ordering. Returns 0 if the tags are
@@ -1716,7 +1843,7 @@ int mpack_tag_cmp(mpack_tag_t left, mpack_tag_t right);
  * is equal to the value 1 stored in a 64-bit unsigned integer field.
  *
  * The "extension type" of an extension object is considered part of the value
- * and much match exactly.
+ * and must match exactly.
  *
  * \warning Floating point numbers are compared bit-for-bit, not using the language's
  * operator==. This means that NaNs with matching representation will compare equal.
@@ -1732,8 +1859,12 @@ MPACK_INLINE bool mpack_tag_equal(mpack_tag_t left, mpack_tag_t right) {
  *
  * This is only available in debug mode, and only if stdio is available (since
  * it uses snprintf().) It's strictly for debugging purposes.
+ *
+ * The prefix is used to print the first few hexadecimal bytes of a bin or ext
+ * type. Pass NULL if not a bin or ext.
  */
-void mpack_tag_debug_pseudo_json(mpack_tag_t tag, char* buffer, size_t buffer_size);
+void mpack_tag_debug_pseudo_json(mpack_tag_t tag, char* buffer, size_t buffer_size,
+        const char* prefix, size_t prefix_size);
 
 /**
  * Generates a debug string description of the given tag into the given buffer.
@@ -1742,6 +1873,38 @@ void mpack_tag_debug_pseudo_json(mpack_tag_t tag, char* buffer, size_t buffer_si
  * it uses snprintf().) It's strictly for debugging purposes.
  */
 void mpack_tag_debug_describe(mpack_tag_t tag, char* buffer, size_t buffer_size);
+
+/** @cond */
+
+/*
+ * A callback function for printing pseudo-JSON for debugging purposes.
+ *
+ * @see mpack_node_print_callback
+ */
+typedef void (*mpack_print_callback_t)(void* context, const char* data, size_t count);
+
+// helpers for printing debug output
+// i feel a bit like i'm re-implementing a buffered writer again...
+typedef struct mpack_print_t {
+    char* buffer;
+    size_t size;
+    size_t count;
+    mpack_print_callback_t callback;
+    void* context;
+} mpack_print_t;
+
+void mpack_print_append(mpack_print_t* print, const char* data, size_t count);
+
+MPACK_INLINE void mpack_print_append_cstr(mpack_print_t* print, const char* cstr) {
+    mpack_print_append(print, cstr, mpack_strlen(cstr));
+}
+
+void mpack_print_flush(mpack_print_t* print);
+
+void mpack_print_file_callback(void* context, const char* data, size_t count);
+
+/** @endcond */
+
 #endif
 
 /**
@@ -1823,10 +1986,12 @@ MPACK_INLINE mpack_tag_t mpack_tag_bin(int32_t length) {
     return mpack_tag_make_bin((uint32_t)length);
 }
 
+#if MPACK_EXTENSIONS
 /** \deprecated Renamed to mpack_tag_make_ext(). */
 MPACK_INLINE mpack_tag_t mpack_tag_ext(int8_t exttype, int32_t length) {
     return mpack_tag_make_ext(exttype, (uint32_t)length);
 }
+#endif
 
 /**
  * @}
@@ -1945,6 +2110,7 @@ MPACK_INLINE void mpack_store_i64(char* p, int64_t val) {mpack_store_u64(p, (uin
 
 MPACK_INLINE float mpack_load_float(const char* p) {
     MPACK_CHECK_FLOAT_ORDER();
+    MPACK_STATIC_ASSERT(sizeof(float) == sizeof(uint32_t), "float is wrong size??");
     union {
         float f;
         uint32_t u;
@@ -1955,6 +2121,7 @@ MPACK_INLINE float mpack_load_float(const char* p) {
 
 MPACK_INLINE double mpack_load_double(const char* p) {
     MPACK_CHECK_FLOAT_ORDER();
+    MPACK_STATIC_ASSERT(sizeof(double) == sizeof(uint64_t), "double is wrong size??");
     union {
         double d;
         uint64_t u;
@@ -2023,9 +2190,11 @@ MPACK_INLINE void mpack_store_double(char* p, double value) {
 #define MPACK_TAG_SIZE_EXT8     3
 #define MPACK_TAG_SIZE_EXT16    4
 #define MPACK_TAG_SIZE_EXT32    6
-#define MPACK_TAG_SIZE_TIMESTAMP4 (MPACK_TAG_SIZE_FIXEXT4 + 4)
-#define MPACK_TAG_SIZE_TIMESTAMP8 (MPACK_TAG_SIZE_FIXEXT8 + 8)
-#define MPACK_TAG_SIZE_TIMESTAMP12 (MPACK_TAG_SIZE_EXT8 + 12)
+
+// size in bytes for complete ext types
+#define MPACK_EXT_SIZE_TIMESTAMP4 (MPACK_TAG_SIZE_FIXEXT4 + 4)
+#define MPACK_EXT_SIZE_TIMESTAMP8 (MPACK_TAG_SIZE_FIXEXT8 + 8)
+#define MPACK_EXT_SIZE_TIMESTAMP12 (MPACK_TAG_SIZE_EXT8 + 12)
 
 /** @endcond */
 
@@ -2093,6 +2262,14 @@ bool mpack_str_check_no_null(const char* str, size_t bytes);
 #endif
 
 
+
+/**
+ * @}
+ */
+
+/**
+ * @}
+ */
 
 MPACK_HEADER_END
 
@@ -2388,7 +2565,7 @@ mpack_error_t mpack_writer_destroy(mpack_writer_t* writer);
  * This can be used to interface with older libraries that do not support
  * the newest MessagePack features (such as the @c str8 type.)
  *
- * This requires @ref MPACK_COMPATIBILITY.
+ * @note This requires @ref MPACK_COMPATIBILITY.
  */
 MPACK_INLINE void mpack_writer_set_version(mpack_writer_t* writer, mpack_version_t version) {
     writer->version = version;
@@ -2401,9 +2578,21 @@ MPACK_INLINE void mpack_writer_set_version(mpack_writer_t* writer, mpack_version
  *
  * @param writer The MPack writer.
  * @param context User data to pass to the writer callbacks.
+ *
+ * @see mpack_writer_context()
  */
 MPACK_INLINE void mpack_writer_set_context(mpack_writer_t* writer, void* context) {
     writer->context = context;
+}
+
+/**
+ * Returns the custom context for writer callbacks.
+ *
+ * @see mpack_writer_set_context
+ * @see mpack_writer_set_flush
+ */
+MPACK_INLINE void* mpack_writer_context(mpack_writer_t* writer) {
+    return writer->context;
 }
 
 /**
@@ -2417,6 +2606,8 @@ MPACK_INLINE void mpack_writer_set_context(mpack_writer_t* writer, void* context
  *
  * @param writer The MPack writer.
  * @param flush The function to write out data from the buffer.
+ *
+ * @see mpack_writer_context()
  */
 void mpack_writer_set_flush(mpack_writer_t* writer, mpack_writer_flush_t flush);
 
@@ -2623,9 +2814,13 @@ void mpack_write_nil(mpack_writer_t* writer);
 /** Write a pre-encoded messagepack object */
 void mpack_write_object_bytes(mpack_writer_t* writer, const char* data, size_t bytes);
 
+#if MPACK_EXTENSIONS
 /**
  * Writes a timestamp.
  *
+ * @note This requires @ref MPACK_EXTENSIONS.
+ *
+ * @param writer The writer
  * @param seconds The (signed) number of seconds since 1970-01-01T00:00:00Z.
  * @param nanoseconds The additional number of nanoseconds from 0 to 999,999,999 inclusive.
  */
@@ -2634,6 +2829,9 @@ void mpack_write_timestamp(mpack_writer_t* writer, int64_t seconds, uint32_t nan
 /**
  * Writes a timestamp with the given number of seconds (and zero nanoseconds).
  *
+ * @note This requires @ref MPACK_EXTENSIONS.
+ *
+ * @param writer The writer
  * @param seconds The (signed) number of seconds since 1970-01-01T00:00:00Z.
  */
 MPACK_INLINE void mpack_write_timestamp_seconds(mpack_writer_t* writer, int64_t seconds) {
@@ -2642,10 +2840,13 @@ MPACK_INLINE void mpack_write_timestamp_seconds(mpack_writer_t* writer, int64_t 
 
 /**
  * Writes a timestamp.
+ *
+ * @note This requires @ref MPACK_EXTENSIONS.
  */
 MPACK_INLINE void mpack_write_timestamp_struct(mpack_writer_t* writer, mpack_timestamp_t timestamp) {
     mpack_write_timestamp(writer, timestamp.seconds, timestamp.nanoseconds);
 }
+#endif
 
 /**
  * @}
@@ -2811,6 +3012,7 @@ void mpack_write_utf8_cstr_or_nil(mpack_writer_t* writer, const char* cstr);
  */
 void mpack_write_bin(mpack_writer_t* writer, const char* data, uint32_t count);
 
+#if MPACK_EXTENSIONS
 /**
  * Writes an extension type.
  *
@@ -2821,8 +3023,11 @@ void mpack_write_bin(mpack_writer_t* writer, const char* data, uint32_t count);
  *
  * You should not call mpack_finish_ext() after calling this; this
  * performs both start and finish.
+ *
+ * @note This requires @ref MPACK_EXTENSIONS.
  */
 void mpack_write_ext(mpack_writer_t* writer, int8_t exttype, const char* data, uint32_t count);
+#endif
 
 /**
  * @}
@@ -2853,6 +3058,7 @@ void mpack_start_str(mpack_writer_t* writer, uint32_t count);
  */
 void mpack_start_bin(mpack_writer_t* writer, uint32_t count);
 
+#if MPACK_EXTENSIONS
 /**
  * Opens an extension type. `count` bytes should be written with calls
  * to mpack_write_bytes(), and mpack_finish_ext() should be called
@@ -2860,8 +3066,11 @@ void mpack_start_bin(mpack_writer_t* writer, uint32_t count);
  *
  * Extension types [0, 127] are available for application-specific types. Extension
  * types [-128, -1] are reserved for future extensions of MessagePack.
+ *
+ * @note This requires @ref MPACK_EXTENSIONS.
  */
 void mpack_start_ext(mpack_writer_t* writer, int8_t exttype, uint32_t count);
+#endif
 
 /**
  * Writes a portion of bytes for a string, binary blob or extension type which
@@ -2917,6 +3126,7 @@ MPACK_INLINE void mpack_finish_bin(mpack_writer_t* writer) {
     mpack_writer_track_pop(writer, mpack_type_bin);
 }
 
+#if MPACK_EXTENSIONS
 /**
  * Finishes writing an extended type binary data blob.
  *
@@ -2925,12 +3135,15 @@ MPACK_INLINE void mpack_finish_bin(mpack_writer_t* writer) {
  *
  * This will track writes to ensure that the correct number of bytes are written.
  *
+ * @note This requires @ref MPACK_EXTENSIONS.
+ *
  * @see mpack_start_ext()
  * @see mpack_write_bytes()
  */
 MPACK_INLINE void mpack_finish_ext(mpack_writer_t* writer) {
     mpack_writer_track_pop(writer, mpack_type_ext);
 }
+#endif
 
 /**
  * Finishes writing the given compound type.
@@ -3185,11 +3398,19 @@ struct mpack_track_t;
 #define MPACK_READER_SMALL_FRACTION_DENOMINATOR 32
 
 /**
- * @defgroup reader Core Reader API
+ * @defgroup reader Reader API
  *
- * The MPack Core Reader API contains functions for imperatively reading
- * dynamically typed data from a MessagePack stream. This forms the basis
- * of the Expect API.
+ * The MPack Reader API contains functions for imperatively reading dynamically
+ * typed data from a MessagePack stream.
+ *
+ * See @ref docs/reader.md for examples.
+ *
+ * @note If you are not writing code for an embedded device (or otherwise do
+ * not need maximum performance with minimal memory usage), you should not use
+ * this. You probably want to use the @link node Node API@endlink instead.
+ *
+ * This forms the basis of the @link expect Expect API@endlink, which can be
+ * used to interpret the stream of elements in expected types and value ranges.
  *
  * @{
  */
@@ -3230,6 +3451,8 @@ typedef struct mpack_reader_t mpack_reader_t;
  * less than the requested count as long as some non-zero number of bytes
  * are read; if more bytes are needed, the read function will simply be
  * called again.
+ *
+ * @see mpack_reader_context()
  */
 typedef size_t (*mpack_reader_fill_t)(mpack_reader_t* reader, char* buffer, size_t count);
 
@@ -3238,6 +3461,8 @@ typedef size_t (*mpack_reader_fill_t)(mpack_reader_t* reader, char* buffer, size
  * of bytes from the source (for example by seeking forward.)
  *
  * In case of error, it should flag an appropriate error on the reader.
+ *
+ * @see mpack_reader_context()
  */
 typedef void (*mpack_reader_skip_t)(mpack_reader_t* reader, size_t count);
 
@@ -3417,9 +3642,22 @@ mpack_error_t mpack_reader_destroy(mpack_reader_t* reader);
  *
  * @param reader The MPack reader.
  * @param context User data to pass to the reader callbacks.
+ *
+ * @see mpack_reader_context()
  */
 MPACK_INLINE void mpack_reader_set_context(mpack_reader_t* reader, void* context) {
     reader->context = context;
+}
+
+/**
+ * Returns the custom context for reader callbacks.
+ *
+ * @see mpack_reader_set_context
+ * @see mpack_reader_set_fill
+ * @see mpack_reader_set_skip
+ */
+MPACK_INLINE void* mpack_reader_context(mpack_reader_t* reader) {
+    return reader->context;
 }
 
 /**
@@ -3825,6 +4063,26 @@ MPACK_INLINE bool mpack_should_read_bytes_inplace(mpack_reader_t* reader, size_t
     return (reader->size == 0 || count <= reader->size / MPACK_READER_SMALL_FRACTION_DENOMINATOR);
 }
 
+#if MPACK_EXTENSIONS
+/**
+ * Reads a timestamp contained in an ext object of the given size, closing the
+ * ext type.
+ *
+ * An ext object of exttype @ref MPACK_EXTTYPE_TIMESTAMP must have been opened
+ * by a call to e.g. mpack_read_tag() or mpack_expect_ext().
+ *
+ * You must NOT call mpack_done_ext() after calling this. A timestamp ext
+ * object can only contain a single timestamp value, so this calls
+ * mpack_done_ext() automatically.
+ *
+ * @note This requires @ref MPACK_EXTENSIONS.
+ *
+ * @throws mpack_error_invalid if the size is not one of the supported
+ * timestamp sizes, or if the nanoseconds are out of range.
+ */
+mpack_timestamp_t mpack_read_timestamp(mpack_reader_t* reader, size_t size);
+#endif
+
 /**
  * @}
  */
@@ -3891,16 +4149,20 @@ MPACK_INLINE void mpack_done_bin(mpack_reader_t* reader) {
     mpack_done_type(reader, mpack_type_bin);
 }
 
+#if MPACK_EXTENSIONS
 /**
  * @fn mpack_done_ext(mpack_reader_t* reader)
  *
  * Finishes reading an extended type binary data blob.
  *
  * This will track reads to ensure that the correct number of bytes are read.
+ *
+ * @note This requires @ref MPACK_EXTENSIONS.
  */
 MPACK_INLINE void mpack_done_ext(mpack_reader_t* reader) {
     mpack_done_type(reader, mpack_type_ext);
 }
+#endif
 
 /**
  * Reads and discards the next object. This will read and discard all
@@ -3912,30 +4174,72 @@ void mpack_discard(mpack_reader_t* reader);
  * @}
  */
 
+/** @cond */
+
 #if MPACK_DEBUG && MPACK_STDIO
 /**
  * @name Debugging Functions
  * @{
  */
+/*
+ * Converts a blob of MessagePack to a pseudo-JSON string for debugging
+ * purposes, placing the result in the given buffer with a null-terminator.
+ *
+ * If the buffer does not have enough space, the result will be truncated (but
+ * it is guaranteed to be null-terminated.)
+ *
+ * This is only available in debug mode, and only if stdio is available (since
+ * it uses snprintf().) It's strictly for debugging purposes.
+ */
+void mpack_print_data_to_buffer(const char* data, size_t data_size, char* buffer, size_t buffer_size);
 
-/**
+/*
+ * Converts a node to pseudo-JSON for debugging purposes, calling the given
+ * callback as many times as is necessary to output the character data.
+ *
+ * No null-terminator or trailing newline will be written.
+ *
+ * This is only available in debug mode, and only if stdio is available (since
+ * it uses snprintf().) It's strictly for debugging purposes.
+ */
+void mpack_print_data_to_callback(const char* data, size_t size, mpack_print_callback_t callback, void* context);
+
+/*
  * Converts a blob of MessagePack to pseudo-JSON for debugging purposes
  * and pretty-prints it to the given file.
  */
-void mpack_print_file(const char* data, size_t len, FILE* file);
+void mpack_print_data_to_file(const char* data, size_t len, FILE* file);
 
-/**
+/*
  * Converts a blob of MessagePack to pseudo-JSON for debugging purposes
  * and pretty-prints it to stdout.
  */
+MPACK_INLINE void mpack_print_data_to_stdout(const char* data, size_t len) {
+    mpack_print_data_to_file(data, len, stdout);
+}
+
+/*
+ * Converts the MessagePack contained in the given `FILE*` to pseudo-JSON for
+ * debugging purposes, calling the given callback as many times as is necessary
+ * to output the character data.
+ */
+void mpack_print_stdfile_to_callback(FILE* file, mpack_print_callback_t callback, void* context);
+
+/*
+ * Deprecated.
+ *
+ * \deprecated Renamed to mpack_print_data_to_stdout().
+ */
 MPACK_INLINE void mpack_print(const char* data, size_t len) {
-    mpack_print_file(data, len, stdout);
+    mpack_print_data_to_stdout(data, len);
 }
 
 /**
  * @}
  */
 #endif
+
+/** @endcond */
 
 /**
  * @}
@@ -4038,6 +4342,10 @@ MPACK_HEADER_START
  *
  * The MPack Expect API allows you to easily read MessagePack data when you
  * expect it to follow a predefined schema.
+ *
+ * @note If you are not writing code for an embedded device (or otherwise do
+ * not need maximum performance with minimal memory usage), you should not use
+ * this. You probably want to use the @link node Node API@endlink instead.
  *
  * See @ref docs/expect.md for examples.
  *
@@ -4549,14 +4857,29 @@ void mpack_expect_true(mpack_reader_t* reader);
 void mpack_expect_false(mpack_reader_t* reader);
 
 /**
+ * @}
+ */
+
+/**
+ * @name Extension Functions
+ * @{
+ */
+
+#if MPACK_EXTENSIONS
+/**
  * Reads a timestamp.
+ *
+ * @note This requires @ref MPACK_EXTENSIONS.
  */
 mpack_timestamp_t mpack_expect_timestamp(mpack_reader_t* reader);
 
 /**
  * Reads a timestamp in seconds, truncating the nanoseconds (if any).
+ *
+ * @note This requires @ref MPACK_EXTENSIONS.
  */
 int64_t mpack_expect_timestamp_truncate(mpack_reader_t* reader);
+#endif
 
 /**
  * @}
@@ -5025,7 +5348,7 @@ MPACK_INLINE void mpack_expect_cstr_match(mpack_reader_t* reader, const char* cs
  */
 
 /**
- * @name Binary Data / Extension Functions
+ * @name Binary Data
  * @{
  */
 
@@ -5091,6 +5414,16 @@ size_t mpack_expect_bin_buf(mpack_reader_t* reader, char* buf, size_t size);
 char* mpack_expect_bin_alloc(mpack_reader_t* reader, size_t maxsize, size_t* size);
 
 /**
+ * @}
+ */
+
+/**
+ * @name Extension Functions
+ * @{
+ */
+
+#if MPACK_EXTENSIONS
+/**
  * Reads the start of an extension blob, returning its size in bytes and
  * placing the type into @p type.
  *
@@ -5107,6 +5440,8 @@ char* mpack_expect_bin_alloc(mpack_reader_t* reader, size_t maxsize, size_t* siz
  * @note This cannot be used to match a timestamp. @ref mpack_error_type will
  * be flagged if the value is a timestamp. Use mpack_expect_timestamp() or
  * mpack_expect_timestamp_truncate() instead.
+ *
+ * @note This requires @ref MPACK_EXTENSIONS.
  *
  * @warning Be careful when using reserved types. They may no longer be ext
  * types in the future, and previously valid data containing reserved types may
@@ -5131,6 +5466,8 @@ uint32_t mpack_expect_ext(mpack_reader_t* reader, int8_t* type);
  * @note This cannot be used to match a timestamp. @ref mpack_error_type will
  * be flagged if the value is a timestamp. Use mpack_expect_timestamp() or
  * mpack_expect_timestamp_truncate() instead.
+ *
+ * @note This requires @ref MPACK_EXTENSIONS.
  *
  * @warning Be careful when using reserved types. They may no longer be ext
  * types in the future, and previously valid data containing reserved types may
@@ -5165,6 +5502,8 @@ MPACK_INLINE uint32_t mpack_expect_ext_max(mpack_reader_t* reader, int8_t* type,
  * be flagged if the value is a timestamp. Use mpack_expect_timestamp() or
  * mpack_expect_timestamp_truncate() instead.
  *
+ * @note This requires @ref MPACK_EXTENSIONS.
+ *
  * @warning Be careful when using reserved types. They may no longer be ext
  * types in the future, and previously valid data containing reserved types may
  * become invalid in the future.
@@ -5196,10 +5535,14 @@ MPACK_INLINE void mpack_expect_ext_size(mpack_reader_t* reader, int8_t* type, ui
  * types in the future, and previously valid data containing reserved types may
  * become invalid in the future.
  *
+ * @note This requires @ref MPACK_EXTENSIONS.
+ *
  * @see mpack_expect_ext()
  */
 size_t mpack_expect_ext_buf(mpack_reader_t* reader, int8_t* type, char* buf, size_t size);
+#endif
 
+#if MPACK_EXTENSIONS && defined(MPACK_MALLOC)
 /**
  * Reads an extension blob with the given total maximum size, allocating
  * storage for it, and placing the type into @p type.
@@ -5218,9 +5561,12 @@ size_t mpack_expect_ext_buf(mpack_reader_t* reader, int8_t* type, char* buf, siz
  * types in the future, and previously valid data containing reserved types may
  * become invalid in the future.
  *
+ * @note This requires @ref MPACK_EXTENSIONS and @ref MPACK_MALLOC.
+ *
  * @see mpack_expect_ext()
  */
 char* mpack_expect_ext_alloc(mpack_reader_t* reader, int8_t* type, size_t maxsize, size_t* size);
+#endif
 
 /**
  * @}
@@ -5411,8 +5757,11 @@ MPACK_HEADER_START
 /**
  * @defgroup node Node API
  *
- * The MPack Node API allows you to parse a chunk of MessagePack data
- * in-place into a dynamically typed data structure.
+ * The MPack Node API allows you to parse a chunk of MessagePack into a
+ * dynamically typed data structure, providing random access to the parsed
+ * data.
+ *
+ * See @ref docs/node.md for examples.
  *
  * @{
  */
@@ -5426,8 +5775,9 @@ MPACK_HEADER_START
  *
  * Nodes are immutable.
  *
- * @note @ref mpack_node_t is a handle, not the node data itself. It
- *     is passed by value in the Node API.
+ * @note @ref mpack_node_t is an opaque reference to the node data, not the
+ * node data itself. (It contains pointers to both the node data and the tree.)
+ * It is passed by value in the Node API.
  */
 typedef struct mpack_node_t mpack_node_t;
 
@@ -5437,15 +5787,16 @@ typedef struct mpack_node_t mpack_node_t;
  * You only need to use this if you intend to provide your own storage
  * for nodes instead of letting the tree allocate it.
  *
- * Nodes are 16 bytes on most common architectures (32-bit and 64-bit.)
+ * @ref mpack_node_data_t is 16 bytes on most common architectures (32-bit
+ * and 64-bit.)
  */
 typedef struct mpack_node_data_t mpack_node_data_t;
 
 /**
- * An MPack tree parsed from a blob of MessagePack.
+ * An MPack tree parser to parse a blob or stream of MessagePack.
  *
- * The tree contains a single root node which contains all parsed data.
- * The tree and its nodes are immutable.
+ * When a message is parsed, the tree contains a single root node which
+ * contains all parsed data. The tree and its nodes are immutable.
  */
 typedef struct mpack_tree_t mpack_tree_t;
 
@@ -5483,10 +5834,18 @@ typedef void (*mpack_tree_error_t)(mpack_tree_t* tree, mpack_error_t error);
  * In case of error, it should flag an appropriate error on the reader
  * (usually @ref mpack_error_io.)
  *
- * @note You should only copy and return the bytes that are immediately
- * available. It is always safe to return less than the requested count
- * as long as some non-zero number of bytes are read; if more bytes are
- * needed, the read function will simply be called again.
+ * The blocking or non-blocking behaviour of the read should match whether you
+ * are using mpack_tree_parse() or mpack_tree_try_parse().
+ *
+ * If you are using mpack_tree_parse(), the read should block until at least
+ * one byte is read. If you return 0, mpack_tree_parse() will raise @ref
+ * mpack_error_io.
+ *
+ * If you are using mpack_tree_try_parse(), the read function can always
+ * return 0, and must never block waiting for data (otherwise
+ * mpack_tree_try_parse() would be equivalent to mpack_tree_parse().)
+ * When you return 0, mpack_tree_try_parse() will return false without flagging
+ * an error.
  */
 typedef size_t (*mpack_tree_read_t)(mpack_tree_t* tree, char* buffer, size_t count);
 
@@ -5522,7 +5881,7 @@ struct mpack_node_data_t {
         double   d; /* The value if the type is double. */
         int64_t  i; /* The value if the type is signed int. */
         uint64_t u; /* The value if the type is unsigned int. */
-        size_t offset; /* The byte offset for str, bin, ext and timestamp */
+        size_t offset; /* The byte offset for str, bin and ext */
         mpack_node_data_t* children; /* The children for map or array */
     } value;
 };
@@ -5532,13 +5891,68 @@ typedef struct mpack_tree_page_t {
     mpack_node_data_t nodes[1]; // variable size
 } mpack_tree_page_t;
 
+typedef enum mpack_tree_parse_state_t {
+    mpack_tree_parse_state_not_started,
+    mpack_tree_parse_state_in_progress,
+    mpack_tree_parse_state_parsed,
+} mpack_tree_parse_state_t;
+
+typedef struct mpack_level_t {
+    mpack_node_data_t* child;
+    size_t left; // children left in level
+} mpack_level_t;
+
+typedef struct mpack_tree_parser_t {
+    mpack_tree_parse_state_t state;
+
+    // We keep track of the number of "possible nodes" left in the data rather
+    // than the number of bytes.
+    //
+    // When a map or array is parsed, we ensure at least one byte for each child
+    // exists and subtract them right away. This ensures that if ever a map or
+    // array declares more elements than could possibly be contained in the data,
+    // we will error out immediately rather than allocating storage for them.
+    //
+    // For example malicious data that repeats 0xDE 0xFF 0xFF (start of a map
+    // with 65536 key-value pairs) would otherwise cause us to run out of
+    // memory. With this, the parser can allocate at most as many nodes as
+    // there are bytes in the data (plus the paging overhead, 12%.) An error
+    // will be flagged immediately if and when there isn't enough data left to
+    // fully read all children of all open compound types on the parsing stack.
+    //
+    // Once an entire message has been parsed (and there are no nodes left to
+    // parse whose bytes have been subtracted), this matches the number of left
+    // over bytes in the data.
+    size_t possible_nodes_left;
+
+    mpack_node_data_t* nodes; // next node in current page/pool
+    size_t nodes_left; // nodes left in current page/pool
+
+    size_t current_node_reserved;
+    size_t level;
+
+    #ifdef MPACK_MALLOC
+    // It's much faster to allocate the initial parsing stack inline within the
+    // parser. We replace it with a heap allocation if we need to grow it.
+    mpack_level_t* stack;
+    size_t stack_capacity;
+    bool stack_owned;
+    mpack_level_t stack_local[MPACK_NODE_INITIAL_DEPTH];
+    #else
+    // Without malloc(), we have to reserve a parsing stack the maximum allowed
+    // parsing depth.
+    mpack_level_t stack[MPACK_NODE_MAX_DEPTH_WITHOUT_MALLOC];
+    #endif
+} mpack_tree_parser_t;
+
 struct mpack_tree_t {
     mpack_tree_error_t error_fn;    /* Function to call on error */
     mpack_tree_read_t read_fn;      /* Function to call to read more data */
     mpack_tree_teardown_t teardown; /* Function to teardown the context on destroy */
     void* context;                  /* Context for tree callbacks */
 
-    mpack_node_data_t nil_node; /* a nil node to be returned in case of error */
+    mpack_node_data_t nil_node;     /* a nil node to be returned in case of error */
+    mpack_node_data_t missing_node; /* a missing node to be returned in optional lookups */
     mpack_error_t error;
 
     #ifdef MPACK_MALLOC
@@ -5549,14 +5963,14 @@ struct mpack_tree_t {
     const char* data;
     size_t data_length; // length of data (and content of buffer, if used)
 
-    size_t node_count; // total node count of tree
-    size_t size; // size in bytes of tree (usually matches length, but not if tree has trailing data)
+    size_t size; // size in bytes of tree (usually matches data_length, but not if tree has trailing data)
+    size_t node_count; // total number of nodes in tree (across all pages)
 
     size_t max_size;  // maximum message size
     size_t max_nodes; // maximum nodes in a message
 
+    mpack_tree_parser_t parser;
     mpack_node_data_t* root;
-    bool parsed;
 
     mpack_node_data_t* pool; // pool, or NULL if no pool provided
     size_t pool_count;
@@ -5583,28 +5997,42 @@ MPACK_INLINE mpack_node_t mpack_tree_nil_node(mpack_tree_t* tree) {
     return mpack_node(tree, &tree->nil_node);
 }
 
+MPACK_INLINE mpack_node_t mpack_tree_missing_node(mpack_tree_t* tree) {
+    return mpack_node(tree, &tree->missing_node);
+}
+
 /** @endcond */
 
 
 
 /**
- * @name Tree Functions
+ * @name Tree Initialization
  * @{
  */
 
 #ifdef MPACK_MALLOC
 /**
- * Initializes a tree parser with the given data buffer. The tree will
- * allocate pages of nodes as needed, and will free them when destroyed.
+ * Initializes a tree parser with the given data.
  *
- * Configure the tree if desired, then call mpack_tree_parse() to parse it.
+ * Configure the tree if desired, then call mpack_tree_parse() to parse it. The
+ * tree will allocate pages of nodes as needed and will free them when
+ * destroyed.
  *
  * The tree must be destroyed with mpack_tree_destroy().
  *
- * Any string or blob data types reference the original data, so the data
+ * Any string or blob data types reference the original data, so the given data
  * pointer must remain valid until after the tree is destroyed.
  */
-void mpack_tree_init(mpack_tree_t* tree, const char* data, size_t length);
+void mpack_tree_init_data(mpack_tree_t* tree, const char* data, size_t length);
+
+/**
+ * Deprecated.
+ *
+ * \deprecated Renamed to mpack_tree_init_data().
+ */
+MPACK_INLINE void mpack_tree_init(mpack_tree_t* tree, const char* data, size_t length) {
+    mpack_tree_init_data(tree, data, length);
+}
 
 /**
  * Initializes a tree parser from an unbounded stream, or a stream of
@@ -5612,30 +6040,38 @@ void mpack_tree_init(mpack_tree_t* tree, const char* data, size_t length);
  *
  * The parser can be used to read a single message from a stream of unknown
  * length, or multiple messages from an unbounded stream, allowing it to
- * be used for RPC communication.
+ * be used for RPC communication. Call @ref mpack_tree_parse() to parse
+ * a message from a blocking stream, or @ref mpack_tree_try_parse() for a
+ * non-blocking stream.
  *
  * The stream will use a growable internal buffer to store the most recent
  * message, as well as allocated pages of nodes for the parse tree.
  *
+ * Maximum allowances for message size and node count must be specified in this
+ * function (since the stream is unbounded.) They can be changed later with
+ * @ref mpack_tree_set_limits().
+ *
  * @param tree The tree parser
  * @param read_fn The read function
- * @param max_size The maximum size of a message in bytes
- * @param max_size The maximum number of nodes to allocate. See @ref mpack_node_data_t
- *     for the size of nodes.
+ * @param context The context for the read function
+ * @param max_message_size The maximum size of a message in bytes
+ * @param max_message_nodes The maximum number of nodes per message. See
+ *        @ref mpack_node_data_t for the size of nodes.
  *
  * @see mpack_tree_read_t
+ * @see mpack_reader_context()
  */
 void mpack_tree_init_stream(mpack_tree_t* tree, mpack_tree_read_t read_fn, void* context,
         size_t max_message_size, size_t max_message_nodes);
 #endif
 
 /**
- * Initializes a tree parser with the given data buffer, using the given
- * node data pool to store the results.
+ * Initializes a tree parser with the given data, using the given node data
+ * pool to store the results.
  *
  * Configure the tree if desired, then call mpack_tree_parse() to parse it.
  *
- * If the data does not fit in the pool, mpack_error_too_big will be flagged
+ * If the data does not fit in the pool, @ref mpack_error_too_big will be flagged
  * on the tree.
  *
  * The tree must be destroyed with mpack_tree_destroy(), even if parsing fails.
@@ -5645,7 +6081,8 @@ void mpack_tree_init_pool(mpack_tree_t* tree, const char* data, size_t length,
 
 /**
  * Initializes an MPack tree directly into an error state. Use this if you
- * are writing a wrapper to mpack_tree_init() which can fail its setup.
+ * are writing a wrapper to another <tt>mpack_tree_init*()</tt> function which
+ * can fail its setup.
  */
 void mpack_tree_init_error(mpack_tree_t* tree, mpack_error_t error);
 
@@ -5696,7 +6133,33 @@ void mpack_tree_init_stdfile(mpack_tree_t* tree, FILE* stdfile, size_t max_bytes
 #endif
 
 /**
- * Parses a MessagePack message.
+ * @}
+ */
+
+/**
+ * @name Tree Functions
+ * @{
+ */
+
+/**
+ * Sets the maximum byte size and maximum number of nodes allowed per message.
+ *
+ * The default is SIZE_MAX (no limit) unless @ref mpack_tree_init_stream() is
+ * called (where maximums are required.)
+ *
+ * If a pool of nodes is used, the node limit is the lesser of this limit and
+ * the pool size.
+ *
+ * @param tree The tree parser
+ * @param max_message_size The maximum size of a message in bytes
+ * @param max_message_nodes The maximum number of nodes per message. See
+ *        @ref mpack_node_data_t for the size of nodes.
+ */
+void mpack_tree_set_limits(mpack_tree_t* tree, size_t max_message_size,
+        size_t max_message_nodes);
+
+/**
+ * Parses a MessagePack message into a tree of immutable nodes.
  *
  * If successful, the root node will be available under @ref mpack_tree_root().
  * If not, an appropriate error will be flagged.
@@ -5704,8 +6167,39 @@ void mpack_tree_init_stdfile(mpack_tree_t* tree, FILE* stdfile, size_t max_bytes
  * This can be called repeatedly to parse a series of messages from a data
  * source. When this is called, all previous nodes from this tree and their
  * contents (including the root node) are invalidated.
+ *
+ * If this is called with a stream (see @ref mpack_tree_init_stream()), the
+ * stream must block until data is available. (Otherwise, if this is called on
+ * a non-blocking stream, parsing will fail with @ref mpack_error_io when the
+ * fill function returns 0.)
+ *
+ * There is no way to recover a tree in an error state. It must be destroyed.
  */
 void mpack_tree_parse(mpack_tree_t* tree);
+
+/**
+ * Attempts to parse a MessagePack message from a non-blocking stream into a
+ * tree of immutable nodes.
+ *
+ * A non-blocking read function must have been passed to the tree in
+ * mpack_tree_init_stream().
+ *
+ * If this returns true, a message is available under
+ * @ref mpack_tree_root(). The tree nodes and data will be valid until
+ * the next time a parse is started.
+ *
+ * If this returns false, no message is available, because either not enough
+ * data is available yet or an error has occurred. You must check the tree for
+ * errors whenever this returns false. If there is no error, you should try
+ * again later when more data is available. (You will want to select()/poll()
+ * on the underlying socket or use some other asynchronous mechanism to
+ * determine when it has data.)
+ *
+ * There is no way to recover a tree in an error state. It must be destroyed.
+ *
+ * @see mpack_tree_init_stream()
+ */
+bool mpack_tree_try_parse(mpack_tree_t* tree);
 
 /**
  * Returns the root node of the tree, if the tree is not in an error state.
@@ -5724,9 +6218,10 @@ MPACK_INLINE mpack_error_t mpack_tree_error(mpack_tree_t* tree) {
 }
 
 /**
- * Returns the number of bytes used in the buffer when the tree was
- * parsed. If there is something in the buffer after the MessagePack
- * object (such as another object), this can be used to find it.
+ * Returns the size in bytes of the current parsed message.
+ *
+ * If there is something in the buffer after the MessagePack object, this can
+ * be used to find it.
  *
  * This is zero if an error occurred during tree parsing (since the
  * portion of the data that the first complete object occupies cannot
@@ -5746,9 +6241,21 @@ mpack_error_t mpack_tree_destroy(mpack_tree_t* tree);
  *
  * @param tree The MPack tree.
  * @param context User data to pass to the tree callbacks.
+ *
+ * @see mpack_reader_context()
  */
 MPACK_INLINE void mpack_tree_set_context(mpack_tree_t* tree, void* context) {
     tree->context = context;
+}
+
+/**
+ * Returns the custom context for tree callbacks.
+ *
+ * @see mpack_tree_set_context
+ * @see mpack_tree_init_stream
+ */
+MPACK_INLINE void* mpack_tree_context(mpack_tree_t* tree) {
+    return tree->context;
 }
 
 /**
@@ -5794,6 +6301,15 @@ MPACK_INLINE void mpack_tree_set_teardown(mpack_tree_t* tree, mpack_tree_teardow
 void mpack_tree_flag_error(mpack_tree_t* tree, mpack_error_t error);
 
 /**
+ * @}
+ */
+
+/**
+ * @name Node Core Functions
+ * @{
+ */
+
+/**
  * Places the node's tree in the given error state, calling the error callback
  * if one is set.
  *
@@ -5804,15 +6320,6 @@ void mpack_tree_flag_error(mpack_tree_t* tree, mpack_error_t error);
  * error callback is called.
  */
 void mpack_node_flag_error(mpack_node_t node, mpack_error_t error);
-
-/**
- * @}
- */
-
-/**
- * @name Node Core Functions
- * @{
- */
 
 /**
  * Returns the error state of the node's tree.
@@ -5827,21 +6334,63 @@ MPACK_INLINE mpack_error_t mpack_node_error(mpack_node_t node) {
  */
 mpack_tag_t mpack_node_tag(mpack_node_t node);
 
+/** @cond */
+
 #if MPACK_DEBUG && MPACK_STDIO
-/**
+/*
+ * Converts a node to a pseudo-JSON string for debugging purposes, placing the
+ * result in the given buffer with a null-terminator.
+ *
+ * If the buffer does not have enough space, the result will be truncated (but
+ * it is guaranteed to be null-terminated.)
+ *
+ * This is only available in debug mode, and only if stdio is available (since
+ * it uses snprintf().) It's strictly for debugging purposes.
+ */
+void mpack_node_print_to_buffer(mpack_node_t node, char* buffer, size_t buffer_size);
+
+/*
+ * Converts a node to pseudo-JSON for debugging purposes, calling the given
+ * callback as many times as is necessary to output the character data.
+ *
+ * No null-terminator or trailing newline will be written.
+ *
+ * This is only available in debug mode, and only if stdio is available (since
+ * it uses snprintf().) It's strictly for debugging purposes.
+ */
+void mpack_node_print_to_callback(mpack_node_t node, mpack_print_callback_t callback, void* context);
+
+/*
  * Converts a node to pseudo-JSON for debugging purposes
  * and pretty-prints it to the given file.
+ *
+ * This is only available in debug mode, and only if stdio is available (since
+ * it uses snprintf().) It's strictly for debugging purposes.
  */
-void mpack_node_print_file(mpack_node_t node, FILE* file);
+void mpack_node_print_to_file(mpack_node_t node, FILE* file);
 
-/**
+/*
  * Converts a node to pseudo-JSON for debugging purposes
  * and pretty-prints it to stdout.
+ *
+ * This is only available in debug mode, and only if stdio is available (since
+ * it uses snprintf().) It's strictly for debugging purposes.
+ */
+MPACK_INLINE void mpack_node_print_to_stdout(mpack_node_t node) {
+    mpack_node_print_to_file(node, stdout);
+}
+
+/*
+ * Deprecated.
+ *
+ * \deprecated Renamed to mpack_node_print_to_stdout().
  */
 MPACK_INLINE void mpack_node_print(mpack_node_t node) {
-    mpack_node_print_file(node, stdout);
+    mpack_node_print_to_stdout(node);
 }
 #endif
+
+/** @endcond */
 
 /**
  * @}
@@ -5855,16 +6404,39 @@ MPACK_INLINE void mpack_node_print(mpack_node_t node) {
 /**
  * Returns the type of the node.
  */
-MPACK_INLINE mpack_type_t mpack_node_type(mpack_node_t node) {
-    if (mpack_node_error(node) != mpack_ok)
-        return mpack_type_nil;
-    return node.data->type;
-}
+mpack_type_t mpack_node_type(mpack_node_t node);
 
 /**
- * Checks if the given node is of nil type, raising mpack_error_type otherwise.
+ * Returns true if the given node is a nil node; false otherwise.
+ *
+ * To ensure that a node is nil and flag an error otherwise, use
+ * mpack_node_nil().
+ */
+bool mpack_node_is_nil(mpack_node_t node);
+
+/**
+ * Returns true if the given node handle indicates a missing node; false otherwise.
+ *
+ * To ensure that a node is missing and flag an error otherwise, use
+ * mpack_node_missing().
+ */
+bool mpack_node_is_missing(mpack_node_t node);
+
+/**
+ * Checks that the given node is of nil type, raising @ref mpack_error_type
+ * otherwise.
+ *
+ * Use mpack_node_is_nil() to return whether the node is nil.
  */
 void mpack_node_nil(mpack_node_t node);
+
+/**
+ * Checks that the given node indicates a missing node, raising @ref
+ * mpack_error_type otherwise.
+ *
+ * Use mpack_node_is_missing() to return whether the node is missing.
+ */
+void mpack_node_missing(mpack_node_t node);
 
 /**
  * Returns the bool value of the node. If this node is not of the correct
@@ -5886,49 +6458,49 @@ void mpack_node_false(mpack_node_t node);
 
 /**
  * Returns the 8-bit unsigned value of the node. If this node is not
- * of a compatible type, mpack_error_type is raised and zero is returned.
+ * of a compatible type, @ref mpack_error_type is raised and zero is returned.
  */
 uint8_t mpack_node_u8(mpack_node_t node);
 
 /**
  * Returns the 8-bit signed value of the node. If this node is not
- * of a compatible type, mpack_error_type is raised and zero is returned.
+ * of a compatible type, @ref mpack_error_type is raised and zero is returned.
  */
 int8_t mpack_node_i8(mpack_node_t node);
 
 /**
  * Returns the 16-bit unsigned value of the node. If this node is not
- * of a compatible type, mpack_error_type is raised and zero is returned.
+ * of a compatible type, @ref mpack_error_type is raised and zero is returned.
  */
 uint16_t mpack_node_u16(mpack_node_t node);
 
 /**
  * Returns the 16-bit signed value of the node. If this node is not
- * of a compatible type, mpack_error_type is raised and zero is returned.
+ * of a compatible type, @ref mpack_error_type is raised and zero is returned.
  */
 int16_t mpack_node_i16(mpack_node_t node);
 
 /**
  * Returns the 32-bit unsigned value of the node. If this node is not
- * of a compatible type, mpack_error_type is raised and zero is returned.
+ * of a compatible type, @ref mpack_error_type is raised and zero is returned.
  */
 uint32_t mpack_node_u32(mpack_node_t node);
 
 /**
  * Returns the 32-bit signed value of the node. If this node is not
- * of a compatible type, mpack_error_type is raised and zero is returned.
+ * of a compatible type, @ref mpack_error_type is raised and zero is returned.
  */
 int32_t mpack_node_i32(mpack_node_t node);
 
 /**
  * Returns the 64-bit unsigned value of the node. If this node is not
- * of a compatible type, mpack_error_type is raised, and zero is returned.
+ * of a compatible type, @ref mpack_error_type is raised, and zero is returned.
  */
 uint64_t mpack_node_u64(mpack_node_t node);
 
 /**
  * Returns the 64-bit signed value of the node. If this node is not
- * of a compatible type, mpack_error_type is raised and zero is returned.
+ * of a compatible type, @ref mpack_error_type is raised and zero is returned.
  */
 int64_t mpack_node_i64(mpack_node_t node);
 
@@ -5988,8 +6560,11 @@ float mpack_node_float_strict(mpack_node_t node);
  */
 double mpack_node_double_strict(mpack_node_t node);
 
+#if MPACK_EXTENSIONS
 /**
  * Returns a timestamp.
+ *
+ * @note This requires @ref MPACK_EXTENSIONS.
  *
  * @throws mpack_error_type if the underlying value is not a timestamp.
  */
@@ -5998,6 +6573,8 @@ mpack_timestamp_t mpack_node_timestamp(mpack_node_t node);
 /**
  * Returns a timestamp's (signed) seconds since 1970-01-01T00:00:00Z.
  *
+ * @note This requires @ref MPACK_EXTENSIONS.
+ *
  * @throws mpack_error_type if the underlying value is not a timestamp.
  */
 int64_t mpack_node_timestamp_seconds(mpack_node_t node);
@@ -6005,10 +6582,13 @@ int64_t mpack_node_timestamp_seconds(mpack_node_t node);
 /**
  * Returns a timestamp's additional nanoseconds.
  *
+ * @note This requires @ref MPACK_EXTENSIONS.
+ *
  * @return A nanosecond count between 0 and 999,999,999 inclusive.
  * @throws mpack_error_type if the underlying value is not a timestamp.
  */
 uint32_t mpack_node_timestamp_nanoseconds(mpack_node_t node);
+#endif
 
 /**
  * @}
@@ -6059,17 +6639,33 @@ void mpack_node_check_utf8(mpack_node_t node);
  */
 void mpack_node_check_utf8_cstr(mpack_node_t node);
 
+#if MPACK_EXTENSIONS
 /**
  * Returns the extension type of the given ext node.
  *
  * This returns zero if the tree is in an error state.
+ *
+ * @note This requires @ref MPACK_EXTENSIONS.
  */
 int8_t mpack_node_exttype(mpack_node_t node);
+#endif
+
+/**
+ * Returns the number of bytes in the given bin node.
+ *
+ * This returns zero if the tree is in an error state.
+ *
+ * If this node is not a bin, @ref mpack_error_type is raised and zero is returned.
+ */
+size_t mpack_node_bin_size(mpack_node_t node);
 
 /**
  * Returns the length of the given str, bin or ext node.
  *
  * This returns zero if the tree is in an error state.
+ *
+ * If this node is not a str, bin or map, @ref mpack_error_type is raised and zero
+ * is returned.
  */
 uint32_t mpack_node_data_len(mpack_node_t node);
 
@@ -6078,13 +6674,16 @@ uint32_t mpack_node_data_len(mpack_node_t node);
  * include any null-terminator.
  *
  * This returns zero if the tree is in an error state.
+ *
+ * If this node is not a str, @ref mpack_error_type is raised and zero is returned.
  */
 size_t mpack_node_strlen(mpack_node_t node);
 
 /**
- * Returns a pointer to the data contained by this node, ensuring it is a string.
+ * Returns a pointer to the data contained by this node, ensuring the node is a
+ * string.
  *
- * @note Strings are not null-terminated! Use one of the cstr functions
+ * @warning Strings are not null-terminated! Use one of the cstr functions
  * to get a null-terminated string.
  *
  * The pointer is valid as long as the data backing the tree is valid.
@@ -6105,7 +6704,7 @@ const char* mpack_node_str(mpack_node_t node);
  *
  * The pointer is valid as long as the data backing the tree is valid.
  *
- * If this node is not of a str, bin or map, mpack_error_type is raised, and
+ * If this node is not of a str, bin or map, @ref mpack_error_type is raised, and
  * @c NULL is returned.
  *
  * @see mpack_node_copy_cstr()
@@ -6113,6 +6712,16 @@ const char* mpack_node_str(mpack_node_t node);
  * @see mpack_node_utf8_cstr_alloc()
  */
 const char* mpack_node_data(mpack_node_t node);
+
+/**
+ * Returns a pointer to the data contained by this bin node.
+ *
+ * The pointer is valid as long as the data backing the tree is valid.
+ *
+ * If this node is not a bin, @ref mpack_error_type is raised and @c NULL is
+ * returned.
+ */
+const char* mpack_node_bin_data(mpack_node_t node);
 
 /**
  * Copies the bytes contained by this node into the given buffer, returning the
@@ -6148,8 +6757,8 @@ size_t mpack_node_copy_utf8(mpack_node_t node, char* buffer, size_t bufsize);
  * Checks that the given node contains a string with no NUL bytes, copies the string
  * into the given buffer, and adds a null terminator.
  *
- * If this node is not of a string type, mpack_error_type is raised. If the string
- * does not fit, mpack_error_data is raised.
+ * If this node is not of a string type, @ref mpack_error_type is raised. If the string
+ * does not fit, @ref mpack_error_data is raised.
  *
  * If any error occurs, the buffer will contain an empty null-terminated string.
  *
@@ -6163,8 +6772,8 @@ void mpack_node_copy_cstr(mpack_node_t node, char* buffer, size_t size);
  * Checks that the given node contains a valid UTF-8 string with no NUL bytes,
  * copies the string into the given buffer, and adds a null terminator.
  *
- * If this node is not of a string type, mpack_error_type is raised. If the string
- * does not fit, mpack_error_data is raised.
+ * If this node is not of a string type, @ref mpack_error_type is raised. If the string
+ * does not fit, @ref mpack_error_data is raised.
  *
  * If any error occurs, the buffer will contain an empty null-terminated string.
  *
@@ -6176,7 +6785,7 @@ void mpack_node_copy_utf8_cstr(mpack_node_t node, char* buffer, size_t size);
 
 #ifdef MPACK_MALLOC
 /**
- * Allocates a new chunk of data using MPACK_MALLOC with the bytes
+ * Allocates a new chunk of data using MPACK_MALLOC() with the bytes
  * contained by this node.
  *
  * The allocated data must be freed with MPACK_FREE() (or simply free()
@@ -6195,7 +6804,7 @@ void mpack_node_copy_utf8_cstr(mpack_node_t node, char* buffer, size_t size);
 char* mpack_node_data_alloc(mpack_node_t node, size_t maxsize);
 
 /**
- * Allocates a new null-terminated string using MPACK_MALLOC with the string
+ * Allocates a new null-terminated string using MPACK_MALLOC() with the string
  * contained by this node.
  *
  * The allocated string must be freed with MPACK_FREE() (or simply free()
@@ -6214,7 +6823,7 @@ char* mpack_node_data_alloc(mpack_node_t node, size_t maxsize);
 char* mpack_node_cstr_alloc(mpack_node_t node, size_t maxsize);
 
 /**
- * Allocates a new null-terminated string using MPACK_MALLOC with the UTF-8
+ * Allocates a new null-terminated string using MPACK_MALLOC() with the UTF-8
  * string contained by this node.
  *
  * The allocated string must be freed with MPACK_FREE() (or simply free()
@@ -6310,8 +6919,8 @@ size_t mpack_node_array_length(mpack_node_t node);
 
 /**
  * Returns the node in the given array at the given index. If the node
- * is not an array, mpack_error_type is raised and a nil node is returned.
- * If the given index is out of bounds, mpack_error_data is raised and
+ * is not an array, @ref mpack_error_type is raised and a nil node is returned.
+ * If the given index is out of bounds, @ref mpack_error_data is raised and
  * a nil node is returned.
  */
 mpack_node_t mpack_node_array_at(mpack_node_t node, size_t index);
@@ -6359,8 +6968,8 @@ mpack_node_t mpack_node_map_value_at(mpack_node_t node, size_t index);
 mpack_node_t mpack_node_map_int(mpack_node_t node, int64_t num);
 
 /**
- * Returns the value node in the given map for the given integer key, or a nil
- * node if the map does not contain the given key.
+ * Returns the value node in the given map for the given integer key, or a
+ * missing node if the map does not contain the given key.
  *
  * The key must be unique. An error is flagged if the node has multiple
  * entries with the given key.
@@ -6368,7 +6977,10 @@ mpack_node_t mpack_node_map_int(mpack_node_t node, int64_t num);
  * @throws mpack_error_type If the node is not a map
  * @throws mpack_error_data If the node contains more than one entry with the given key
  *
- * @return The value node for the given key, or a nil node in case of error
+ * @return The value node for the given key, or a missing node if the key does
+ *         not exist, or a nil node in case of error
+ *
+ * @see mpack_node_is_missing()
  */
 mpack_node_t mpack_node_map_int_optional(mpack_node_t node, int64_t num);
 
@@ -6398,7 +7010,10 @@ mpack_node_t mpack_node_map_uint(mpack_node_t node, uint64_t num);
  * @throws mpack_error_type If the node is not a map
  * @throws mpack_error_data If the node contains more than one entry with the given key
  *
- * @return The value node for the given key, or a nil node in case of error
+ * @return The value node for the given key, or a missing node if the key does
+ *         not exist, or a nil node in case of error
+ *
+ * @see mpack_node_is_missing()
  */
 mpack_node_t mpack_node_map_uint_optional(mpack_node_t node, uint64_t num);
 
@@ -6428,7 +7043,10 @@ mpack_node_t mpack_node_map_str(mpack_node_t node, const char* str, size_t lengt
  * @throws mpack_error_type If the node is not a map
  * @throws mpack_error_data If the node contains more than one entry with the given key
  *
- * @return The value node for the given key, or a nil node in case of error
+ * @return The value node for the given key, or a missing node if the key does
+ *         not exist, or a nil node in case of error
+ *
+ * @see mpack_node_is_missing()
  */
 mpack_node_t mpack_node_map_str_optional(mpack_node_t node, const char* str, size_t length);
 
@@ -6459,7 +7077,10 @@ mpack_node_t mpack_node_map_cstr(mpack_node_t node, const char* cstr);
  * @throws mpack_error_type If the node is not a map
  * @throws mpack_error_data If the node contains more than one entry with the given key
  *
- * @return The value node for the given key, or a nil node in case of error
+ * @return The value node for the given key, or a missing node if the key does
+ *         not exist, or a nil node in case of error
+ *
+ * @see mpack_node_is_missing()
  */
 mpack_node_t mpack_node_map_cstr_optional(mpack_node_t node, const char* cstr);
 

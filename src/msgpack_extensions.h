@@ -138,11 +138,16 @@ DLLLOCAL void msgpack_pack_ext_number(mpack_writer_t* writer, const QoreNumberNo
 */
 DLLLOCAL void msgpack_pack_ext_string(mpack_writer_t* writer, const QoreString* str);
 
+DLLLOCAL void msgpack_pack_ext_timestamp(mpack_writer_t* writer, const DateTimeNode* date);
 
 //-------------------------------
 // Extension unpacking functions
 //-------------------------------
 
+// MessagePack built-in types
+DLLLOCAL AbstractQoreNode* msgpack_unpack_ext_timestamp(mpack_reader_t* reader, mpack_tag_t tag, ExceptionSink* xsink);
+
+// Qore types
 DLLLOCAL AbstractQoreNode* msgpack_unpack_ext_date(mpack_reader_t* reader, mpack_tag_t tag, ExceptionSink* xsink);
 DLLLOCAL AbstractQoreNode* msgpack_unpack_ext_null(mpack_reader_t* reader, mpack_tag_t tag, ExceptionSink* xsink);
 DLLLOCAL AbstractQoreNode* msgpack_unpack_ext_number(mpack_reader_t* reader, mpack_tag_t tag, ExceptionSink* xsink);

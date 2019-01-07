@@ -59,17 +59,14 @@ void msgpack_pack_qore_bool(mpack_writer_t* writer, QoreValue value) {
 void msgpack_pack_qore_date(mpack_writer_t* writer, const DateTimeNode* value, OperationMode mode) {
     switch (mode) {
         case MSGPACK_SIMPLE_MODE: {
-            QoreString str;
             if (value->isAbsolute()) {
-                if (value->getMicrosecond())
-                    value->format(str, "YYYY-MM-DDTHH:mm:SS.xxZ");
-                else
-                    value->format(str, "YYYY-MM-DDTHH:mm:SSZ");
+                msgpack_pack_ext_timestamp(writer, value);
             }
             else {
+                QoreString str;
                 value->format(str, "IF");
+                msgpack_pack_utf8(writer, str.c_str(), static_cast<uint32_t>(str.size()));
             }
-            msgpack_pack_utf8(writer, str.c_str(), static_cast<uint32_t>(str.size()));
             break;
         }
         case MSGPACK_QORE_MODE:
