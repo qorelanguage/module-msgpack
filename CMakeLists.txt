@@ -79,7 +79,7 @@ add_definitions(-DMPACK_WRITE_TRACKING=1)
 # enable MPack compatibility features
 add_definitions(-DMPACK_COMPATIBILITY=1)
 
-add_library(${module_name} MODULE ${CPP_SRC} ${QPP_SOURCES})
+add_library(${module_name} SHARED ${CPP_SRC} ${QPP_SOURCES})
 
 if (WIN32 AND MINGW AND MSYS)
     target_compile_definitions(${module_name} PUBLIC BUILDING_DLL)
