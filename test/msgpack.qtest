@@ -677,7 +677,7 @@ class MsgPackTest inherits QUnit::Test {
         binary b;
         auto rv;
 
-        assertThrows("UNPACK-ERROR", sub() { msgpack_unpack(<ab>); });
+        assertThrows("UNPACK-ERROR", sub() { auto x = msgpack_unpack(<ab>); remove x; });
 
         {
             binary bin = <feedface>;
