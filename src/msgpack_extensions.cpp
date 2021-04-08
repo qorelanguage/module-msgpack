@@ -4,7 +4,7 @@
 
   Qore MessagePack module
 
-  Copyright (C) 2018 Qore Technologies, s.r.o.
+  Copyright (C) 2018 - 2021 Qore Technologies, s.r.o.
 
   Permission is hereby granted, free of charge, to any person obtaining a
   copy of this software and associated documentation files (the "Software"),
@@ -31,6 +31,7 @@
 #include <cmath>
 #include <cstdint>
 #include <memory>
+#include <limits>
 
 // module sources
 #include "msgpack_enums.h"
