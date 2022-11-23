@@ -87,6 +87,10 @@ endif (WIN32 AND MINGW AND MSYS)
 
 add_dependencies(${module_name} QPP_GENERATED_FILES)
 
+if (DEFINED ENV{DOXYGEN_EXECUTABLE})
+    set(DOXYGEN_EXECUTABLE $ENV{DOXYGEN_EXECUTABLE})
+endif()
+
 qore_external_binary_module(${module_name} ${PROJECT_VERSION})
 
 qore_dist(${PROJECT_VERSION})
