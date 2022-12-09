@@ -75,7 +75,7 @@ using msgpack::QE_KOI7;
 
 /** @defgroup msgpack_constants MessagePack Constants
  */
-//@{
+///@{
 namespace msgpack;
 
 //! Pack data in simple mode and expect data to be unpacked to be in simple mode.
@@ -176,11 +176,11 @@ const QE_KOI8_U = QE_KOI8_U;
 
 //! Encoding ID used for \c KOI7.
 const QE_KOI7 = QE_KOI7;
-//@}
+///@}
 
 /** @defgroup msgpack_functions MessagePack Functions
  */
-//@{
+///@{
 namespace msgpack;
 //! Packs passed Qore value.
 /**
@@ -262,4 +262,4 @@ auto msgpack_unpack(binary value, int mode = MSGPACK_SIMPLE_MODE) [flags=RET_VAL
         return QoreValue();
     }
 }
-//@}
+///@}
