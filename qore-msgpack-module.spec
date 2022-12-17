@@ -5,7 +5,7 @@
 %global user_module_dir %{mydatarootdir}/qore-modules/
 
 Name:           qore-msgpack-module
-Version:        1.0.0
+Version:        1.0.1
 Release:        1
 Summary:        Qorus Integration Engine - Qore msgpack module
 License:        MIT
@@ -64,7 +64,8 @@ msgpack module.
 %doc docs/msgpack test
 
 %changelog
-* Sat Dec 17 2022 David Nichols <david@qore.org> 1.0.0
+* Sat Dec 17 2022 David Nichols <david@qore.org> 1.0.1
+- updated to version 1.0.1
 - added tests and doc package to spec file
 
 * Wed Jan 27 2022 David Nichols <david@qore.org> 1.0.0
